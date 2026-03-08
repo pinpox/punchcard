@@ -1,0 +1,46 @@
+{{define "time_entry.html"}}
+<div class="time-entry" id="entry-{{.ID}}">
+    <div class="entry-row">
+        <div class="task-info" onclick="editDescription(this, {{.ID}}, '{{.Date.Format "2006-01-02"}}')" title="Click to edit (Enter or click away to save, Shift+Enter for newline, Esc to cancel)">
+            <div class="task-title">{{.Title}}</div>
+            {{if .DescriptionLines}}
+                <div class="task-description">
+                    {{range .DescriptionLines}}
+                        <div class="description-line">{{.}}</div>
+                    {{end}}
+                </div>
+            {{end}}
+        </div>
+        
+        <div class="timer-display-container">
+            <div class="timer-display {{if not .IsRunning}}editable{{end}}" 
+                 data-entry-id="{{.ID}}" 
+                 data-running="{{.IsRunning}}"
+                 data-original-time="{{.DurationString}}"
+                 {{if not .IsRunning}}onclick="editTime(this, {{.ID}}, '{{.Date.Format "2006-01-02"}}')" title="Click to edit (e.g. 2 or 1:30)"{{end}}>
+                {{.DurationString}}
+            </div>
+        </div>
+        
+        <button class="btn {{if .IsRunning}}btn-danger{{else}}btn-success{{end}} start-stop-btn"
+                hx-post="/{{.Date.Format "2006-01-02"}}/start-stop/{{.ID}}"
+                hx-target="#entry-{{.ID}}"
+                hx-swap="outerHTML">
+            {{if .IsRunning}}
+                ⏹ Stop
+            {{else}}
+                ▶ Start
+            {{end}}
+        </button>
+        
+        <button class="delete-btn" 
+                hx-delete="/{{.Date.Format "2006-01-02"}}/delete/{{.ID}}"
+                hx-target="#entry-{{.ID}}"
+                hx-swap="outerHTML"
+                hx-confirm="Delete this time entry?"
+                title="Delete entry">
+            ✕
+        </button>
+    </div>
+</div>
+{{end}}

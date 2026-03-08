@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punchcard - Time Tracker</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="date-header">
+            <a href="{{.PrevDayURL}}" class="nav-btn prev-btn" title="Previous day (←)">
+                ‹
+            </a>
+            <div class="date-display">
+                <div class="current-date" onclick="showDatePicker()" title="Click to open calendar">
+                    <div class="day-name">{{.DayName}}</div>
+                    <div class="date-iso">{{.DateISO}}</div>
+                </div>
+                <input type="date"
+                       id="date-picker"
+                       class="hidden-date-picker"
+                       value="{{.ViewDate.Format "2006-01-02"}}"
+                       onchange="goToSelectedDate(this.value)">
+                {{if not .IsToday}}
+                <a href="/" class="today-btn" title="Go to today">Today</a>
+                {{end}}
+            </div>
+            <a href="{{.NextDayURL}}" class="nav-btn next-btn" title="Next day (→)">
+                ›
+            </a>
+        </div>
+
+        <!-- Weekly chart -->
+        <div class="week-chart">
+            <div class="chart-container">
+                {{range .WeekStats}}
+                <div class="day-bar {{if .IsToday}}today{{end}} {{if .IsViewDay}}selected{{end}}" 
+                     onclick="window.location.href='{{.Date.Format "/2006-01-02"}}'"
+                     title="{{.DayName}}, {{.Date.Format "2006-01-02"}}: {{printf "%.1f" .TotalHours}}h">
+                    <div class="hours-label">{{if gt .TotalHours 0.0}}{{printf "%.1f" .TotalHours}}h{{end}}</div>
+                    <div class="bar" style="height: {{.BarHeight}}px;"></div>
+                    <div class="day-label">
+                        <div class="day-name">{{.DayName}}</div>
+                        <div class="day-date">{{.DateShort}}</div>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- Add new entry form -->
+        <div class="add-entry-form">
+            <form hx-post="/{{.ViewDate.Format "2006-01-02"}}/add" hx-target="#entries" hx-swap="beforeend"
+                  hx-on::after-request="this.reset(); document.getElementById('empty-state')?.remove();">
+                <input type="text" name="description" placeholder="What are you working on?" class="task-input" required>
+                <button type="submit" class="btn btn-primary">▶ Start Task</button>
+            </form>
+        </div>
+
+        <!-- Time entries list -->
+        <div class="entries-container">
+            <div id="entries" class="entries">
+                {{range .Entries}}
+                    {{template "time_entry.html" .}}
+                {{end}}
+                {{if not .HasEntries}}
+                <div class="empty-state" id="empty-state">
+                    <p>No time entries for {{if .IsToday}}today{{else}}this day{{end}} yet. Add your first task above! 🚀</p>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-update running timers every second
+        setInterval(() => {
+            const runningTimers = document.querySelectorAll('.timer-display[data-running="true"]');
+            runningTimers.forEach(timer => {
+                const entryId = timer.getAttribute('data-entry-id');
+                const currentDate = '{{.ViewDate.Format "2006-01-02"}}';
+                fetch(`/${currentDate}/update-timer/${entryId}`)
+                    .then(response => response.text())
+                    .then(duration => {
+                        timer.textContent = duration;
+                    })
+                    .catch(err => console.error('Error updating timer:', err));
+            });
+        }, 1000);
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            // Don't trigger when user is editing (input fields are focused)
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                window.location.href = '{{.PrevDayURL}}';
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                window.location.href = '{{.NextDayURL}}';
+            }
+        });
+
+        // Date picker functionality
+        function showDatePicker() {
+            const picker = document.getElementById('date-picker');
+            // Try to use modern showPicker() API
+            if (picker.showPicker) {
+                picker.showPicker();
+            } else {
+                // Fallback: make the input visible and clickable
+                picker.style.position = 'fixed';
+                picker.style.top = '50%';
+                picker.style.left = '50%';
+                picker.style.transform = 'translate(-50%, -50%)';
+                picker.style.opacity = '1';
+                picker.style.pointerEvents = 'auto';
+                picker.style.width = 'auto';
+                picker.style.height = 'auto';
+                picker.style.zIndex = '1000';
+                picker.focus();
+                picker.click();
+
+                // Hide after selection or blur
+                const hidePicker = () => {
+                    picker.style.position = 'absolute';
+                    picker.style.opacity = '0';
+                    picker.style.pointerEvents = 'none';
+                    picker.style.width = '0';
+                    picker.style.height = '0';
+                    picker.style.zIndex = 'auto';
+                };
+
+                picker.addEventListener('change', hidePicker, { once: true });
+                picker.addEventListener('blur', hidePicker, { once: true });
+            }
+        }
+
+        function goToSelectedDate(dateValue) {
+            if (dateValue) {
+                window.location.href = '/' + dateValue;
+            }
+        }
+
+        // Function to edit time inline
+        function editTime(element, entryId, dateStr) {
+            const originalTime = element.getAttribute('data-original-time');
+
+            // Get the computed dimensions of the original element
+            const computedStyle = window.getComputedStyle(element);
+            const width = element.offsetWidth;
+            const height = element.offsetHeight;
+
+            // Create input element
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'timer-display time-edit-input';
+            input.placeholder = originalTime;
+            input.value = '';
+
+            // Match the exact dimensions
+            input.style.width = width + 'px';
+            input.style.height = height + 'px';
+
+            // Handle key events
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitTimeEdit(entryId, input.value, element, dateStr);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelTimeEdit(element, input);
+                }
+            });
+
+            // Handle blur (lost focus) - submit changes
+            input.addEventListener('blur', function() {
+                setTimeout(() => {
+                    if (input.parentNode) { // Only if input still exists
+                        submitTimeEdit(entryId, input.value, element, dateStr);
+                    }
+                }, 100);
+            });
+
+            // Replace display with input
+            element.style.display = 'none';
+            element.parentNode.insertBefore(input, element);
+            input.focus();
+        }
+
+        // Submit time edit
+        function submitTimeEdit(entryId, duration, originalElement, dateStr) {
+            if (!duration.trim()) {
+                cancelTimeEdit(originalElement, originalElement.parentNode.querySelector('.time-edit-input'));
+                return;
+            }
+
+            // Submit via HTMX
+            const formData = new FormData();
+            formData.append('duration', duration);
+
+            fetch(`/${dateStr}/edit-time/${entryId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Replace the entire entry with the updated HTML
+                const entryElement = document.getElementById(`entry-${entryId}`);
+                entryElement.outerHTML = html;
+
+                // Tell HTMX to process the new content
+                const newElement = document.getElementById(`entry-${entryId}`);
+                if (newElement && window.htmx) {
+                    window.htmx.process(newElement);
+                }
+            })
+            .catch(err => {
+                console.error('Error updating time:', err);
+                cancelTimeEdit(originalElement, originalElement.parentNode.querySelector('.time-edit-input'));
+            });
+        }
+
+        // Cancel time edit
+        function cancelTimeEdit(originalElement, input) {
+            if (input && input.parentNode) {
+                input.parentNode.removeChild(input);
+            }
+            originalElement.style.display = 'block';
+        }
+
+        // Function to edit description inline
+        function editDescription(element, entryId, dateStr) {
+            // Get current description from all text content
+            const titleElement = element.querySelector('.task-title');
+            const descriptionElement = element.querySelector('.task-description');
+
+            let currentDescription = titleElement.textContent.trim();
+            if (descriptionElement) {
+                const descLines = Array.from(descriptionElement.querySelectorAll('.description-line'))
+                    .map(line => line.textContent.trim());
+                currentDescription += '\n' + descLines.join('\n');
+            }
+
+            // Create textarea element
+            const textarea = document.createElement('textarea');
+            textarea.className = 'description-edit-input';
+            textarea.value = currentDescription;
+            textarea.placeholder = currentDescription;
+
+            // Auto-resize function
+            function autoResize() {
+                textarea.style.height = 'auto';
+                // Set height to content, minimum 40px, add a little padding
+                const newHeight = Math.max(40, textarea.scrollHeight + 2);
+                textarea.style.height = newHeight + 'px';
+            }
+
+            // Auto-resize on input
+            textarea.addEventListener('input', autoResize);
+
+            // Handle key events
+            textarea.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submitDescriptionEdit(entryId, textarea.value, element, dateStr);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelDescriptionEdit(element, textarea);
+                } else if (e.key === 'Enter' && e.shiftKey) {
+                    // Allow newline and resize after a brief moment
+                    setTimeout(autoResize, 0);
+                }
+            });
+
+            // Handle blur (lost focus) - submit changes
+            textarea.addEventListener('blur', function() {
+                setTimeout(() => {
+                    if (textarea.parentNode) { // Only if textarea still exists
+                        submitDescriptionEdit(entryId, textarea.value, element, dateStr);
+                    }
+                }, 100);
+            });
+
+            // Replace display with textarea
+            element.style.display = 'none';
+            element.parentNode.insertBefore(textarea, element);
+
+            // Set initial size and focus
+            setTimeout(() => {
+                autoResize();
+                textarea.focus();
+
+                // Position cursor at end, add newline if content exists
+                if (textarea.value.trim()) {
+                    textarea.value = textarea.value + '\n';
+                    autoResize(); // Resize again after adding newline
+                }
+
+                // Set cursor to end
+                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+            }, 0);
+        }
+
+        // Submit description edit
+        function submitDescriptionEdit(entryId, description, originalElement, dateStr) {
+            if (!description.trim()) {
+                cancelDescriptionEdit(originalElement, originalElement.parentNode.querySelector('.description-edit-input'));
+                return;
+            }
+
+            // Submit via HTMX
+            const formData = new FormData();
+            formData.append('description', description);
+
+            fetch(`/${dateStr}/edit-description/${entryId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Replace the entire entry with the updated HTML
+                const entryElement = document.getElementById(`entry-${entryId}`);
+                entryElement.outerHTML = html;
+
+                // Tell HTMX to process the new content
+                const newElement = document.getElementById(`entry-${entryId}`);
+                if (newElement && window.htmx) {
+                    window.htmx.process(newElement);
+                }
+            })
+            .catch(err => {
+                console.error('Error updating description:', err);
+                cancelDescriptionEdit(originalElement, originalElement.parentNode.querySelector('.description-edit-input'));
+            });
+        }
+
+        // Cancel description edit
+        function cancelDescriptionEdit(originalElement, textarea) {
+            if (textarea && textarea.parentNode) {
+                textarea.parentNode.removeChild(textarea);
+            }
+            originalElement.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

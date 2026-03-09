@@ -1,0 +1,9 @@
+# Database file - contains user data
+punchcard.db
+
+# Binary
+punchcard
+
+# Temporary files
+*.tmp
+*.log

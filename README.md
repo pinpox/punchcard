@@ -141,7 +141,33 @@ The application automatically creates the required database tables on first run:
 - `GET /` - Redirects to today's date
 - `GET /{date}` - Main application page for specific date (YYYY-MM-DD)
 - `GET /month/{month}` - Monthly overview page (YYYY-MM format)
+- `GET /month/{month}.json` - Export month data in Kimai JSON format
+- `GET /{date}.json` - Export single day data in Kimai JSON format
 - All existing API endpoints (scoped to authenticated user)
+
+### Kimai Export
+
+Export your time tracking data in Kimai-compatible JSON format:
+
+- **Monthly export**: Visit `/month/2024-03.json` to download March 2024 data
+- **Daily export**: Visit `/2024-03-15.json` to download March 15, 2024 data
+
+**Export format:**
+```json
+[
+  {
+    "project": 1,
+    "activity": 1, 
+    "begin": "2024-03-15T09:00:00",
+    "end": "2024-03-15T17:30:00",
+    "description": "Task description",
+    "billable": true,
+    "exported": false
+  }
+]
+```
+
+**Note**: You'll need to modify the `project` and `activity` IDs to match your Kimai instance before importing.
 
 ## Next Steps
 

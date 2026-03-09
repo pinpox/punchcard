@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -806,6 +807,178 @@ func (a *App) handleMonthView(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// KimaiTimeEntry represents a timesheet entry in Kimai format
+type KimaiTimeEntry struct {
+	Project     int    `json:"project"`
+	Activity    int    `json:"activity"`
+	Begin       string `json:"begin"`
+	End         string `json:"end,omitempty"`
+	Description string `json:"description"`
+	Tags        string `json:"tags,omitempty"`
+	Billable    bool   `json:"billable"`
+	Exported    bool   `json:"exported"`
+}
+
+func (a *App) handleMonthExport(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	monthStr := vars["month"]
+	
+	// Parse the month from URL (format: YYYY-MM)
+	viewDate, err := time.Parse("2006-01", monthStr)
+	if err != nil {
+		http.Error(w, "Invalid month. Please use format YYYY-MM (e.g., 2024-03)", http.StatusBadRequest)
+		return
+	}
+	
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+	
+	// Get all entries for the month
+	monthEntries := a.getMonthEntries(userID, viewDate.Year(), viewDate.Month())
+	
+	// Convert to Kimai format
+	kimaiEntries := make([]KimaiTimeEntry, 0, len(monthEntries))
+	for _, entry := range monthEntries {
+		kimaiEntry := KimaiTimeEntry{
+			Project:     1, // Default project ID - users should modify this
+			Activity:    1, // Default activity ID - users should modify this
+			Begin:       entry.StartTime.Format("2006-01-02T15:04:05"),
+			Description: entry.Description,
+			Billable:    true,
+			Exported:    false,
+		}
+		
+		// Only add end time if timer is stopped
+		if !entry.IsRunning && !entry.EndTime.IsZero() {
+			kimaiEntry.End = entry.EndTime.Format("2006-01-02T15:04:05")
+		}
+		
+		kimaiEntries = append(kimaiEntries, kimaiEntry)
+	}
+	
+	// Set headers for JSON download
+	filename := fmt.Sprintf("punchcard-export-%s.json", monthStr)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	
+	// Encode and send JSON
+	if err := json.NewEncoder(w).Encode(kimaiEntries); err != nil {
+		log.Printf("Error encoding JSON: %v", err)
+		http.Error(w, "Failed to export data", http.StatusInternalServerError)
+	}
+}
+
+func (a *App) getMonthEntries(userID int, year int, month time.Month) []TimeEntry {
+	// First day of the month
+	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
+	// First day of next month
+	lastDay := firstDay.AddDate(0, 1, 0)
+	
+	query := `
+		SELECT id, description, date, start_time, end_time, is_running 
+		FROM time_entries 
+		WHERE user_id = ? AND date >= ? AND date < ?
+		ORDER BY start_time ASC
+	`
+	
+	rows, err := a.db.Query(query, userID, firstDay.Format("2006-01-02"), lastDay.Format("2006-01-02"))
+	if err != nil {
+		log.Printf("Error querying month entries: %v", err)
+		return []TimeEntry{}
+	}
+	defer rows.Close()
+	
+	var entries []TimeEntry
+	for rows.Next() {
+		var entry TimeEntry
+		var dateStr string
+		var startTimeUnix, endTimeUnix sql.NullInt64
+		
+		err := rows.Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning)
+		if err != nil {
+			log.Printf("Error scanning entry: %v", err)
+			continue
+		}
+		
+		// Parse date
+		if entry.Date, err = parseDate(dateStr); err != nil {
+			log.Printf("Error parsing date: %v", err)
+			continue
+		}
+		
+		if startTimeUnix.Valid {
+			entry.StartTime = time.Unix(startTimeUnix.Int64, 0)
+		}
+		
+		if endTimeUnix.Valid {
+			entry.EndTime = time.Unix(endTimeUnix.Int64, 0)
+		}
+		
+		entries = append(entries, entry)
+	}
+	
+	return entries
+}
+
+func (a *App) handleDateExport(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	dateStr := vars["date"]
+	
+	// Parse the date from URL
+	viewDate, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		http.Error(w, "Invalid date. Please use format YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
+	
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+	
+	// Get entries for this specific date
+	dateEntries := a.getEntriesForDate(userID, viewDate)
+	
+	// Convert to Kimai format
+	kimaiEntries := make([]KimaiTimeEntry, 0, len(dateEntries))
+	for _, entry := range dateEntries {
+		kimaiEntry := KimaiTimeEntry{
+			Project:     1, // Default project ID - users should modify this
+			Activity:    1, // Default activity ID - users should modify this
+			Begin:       entry.StartTime.Format("2006-01-02T15:04:05"),
+			Description: entry.Description,
+			Billable:    true,
+			Exported:    false,
+		}
+		
+		// Only add end time if timer is stopped
+		if !entry.IsRunning && !entry.EndTime.IsZero() {
+			kimaiEntry.End = entry.EndTime.Format("2006-01-02T15:04:05")
+		}
+		
+		kimaiEntries = append(kimaiEntries, kimaiEntry)
+	}
+	
+	// Set headers for JSON download
+	filename := fmt.Sprintf("punchcard-export-%s.json", dateStr)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	
+	// Encode and send JSON
+	if err := json.NewEncoder(w).Encode(kimaiEntries); err != nil {
+		log.Printf("Error encoding JSON: %v", err)
+		http.Error(w, "Failed to export data", http.StatusInternalServerError)
+	}
+}
+
 func (a *App) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	dateStr := vars["date"]
@@ -1244,7 +1417,9 @@ func main() {
 	// Routes
 	appRoutes.HandleFunc("/", app.handleIndex).Methods("GET")
 	appRoutes.HandleFunc("/month/{month:[0-9]{4}-[0-9]{2}}", app.handleMonthView).Methods("GET")
+	appRoutes.HandleFunc("/month/{month:[0-9]{4}-[0-9]{2}}.json", app.handleMonthExport).Methods("GET")
 	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}", app.handleDateView).Methods("GET")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}.json", app.handleDateExport).Methods("GET")
 	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/add", app.handleAddEntry).Methods("POST")
 	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/start-stop/{id}", app.handleStartStop).Methods("POST")
 	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/update-timer/{id}", app.handleUpdateTimer).Methods("GET")

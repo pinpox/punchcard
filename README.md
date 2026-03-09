@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/original-logo.svg" alt="Punchcard Logo" width="200" height="280">
+  <img src="static/logo.svg" alt="Punchcard Logo" height="270">
   
   # Punchcard - Daily Time Tracker
   

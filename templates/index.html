@@ -11,26 +11,45 @@
 </head>
 <body>
     <div class="container">
-        <div class="date-header">
-            <a href="{{.PrevDayURL}}" class="nav-btn prev-btn" title="Previous day (←)">
-                ‹
-            </a>
-            <div class="date-display">
-                <div class="current-date" onclick="showDatePicker()" title="Click to open calendar">
-                    <div class="day-name">{{.DayName}}</div>
-                    <div class="date-iso">{{.DateISO}}</div>
-                </div>
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <div class="current-day" onclick="showDatePicker()" title="Click to select date">{{.ViewDate.Format "Monday, January 2, 2006"}}</div>
                 <input type="date"
                        id="date-picker"
                        class="hidden-date-picker"
                        value="{{.ViewDate.Format "2006-01-02"}}"
                        onchange="goToSelectedDate(this.value)">
-                <div class="nav-buttons">
-                    {{if not .IsToday}}
-                    <a href="/" class="today-btn" title="Go to today">Today</a>
-                    {{end}}
-                    <a href="{{.MonthURL}}" class="month-btn" title="Month view">Month</a>
+                <div class="hours-summary">
+                    <a href="/" class="week-hours" title="Go to today">This week: {{printf "%.1f" .WeekHours}}h</a>
+                    <a href="{{.MonthURL}}" class="month-hours" title="Go to month view">This month: {{printf "%.1f" .MonthHours}}h</a>
                 </div>
+            </div>
+            <div class="header-right">
+                {{if not .IsToday}}
+                <a href="/" class="today-header-btn" title="Go to today">Today</a>
+                {{end}}
+                {{if .User}}
+                <div class="user-menu">
+                    <button class="user-btn" onclick="toggleUserMenu()" title="User menu">
+                        {{.User.Name}}
+                    </button>
+                    <div class="user-dropdown" id="user-dropdown">
+                        <a href="/profile">Profile</a>
+                        <a href="/logout">Sign Out</a>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </header>
+
+        <!-- Date Navigation -->
+        <div class="date-header">
+            <a href="{{.PrevDayURL}}" class="nav-btn prev-btn" title="Previous day (←)">
+                ‹
+            </a>
+            <div class="date-display">
+                <!-- Navigation buttons removed - using header counters instead -->
             </div>
             <a href="{{.NextDayURL}}" class="nav-btn next-btn" title="Next day (→)">
                 ›
@@ -352,6 +371,24 @@
             }
             originalElement.style.display = 'block';
         }
+
+        // User menu toggle
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('user-dropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('show');
+            }
+        }
+
+        // Close user menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const userMenu = e.target.closest('.user-menu');
+            const dropdown = document.getElementById('user-dropdown');
+            
+            if (!userMenu && dropdown) {
+                dropdown.classList.remove('show');
+            }
+        });
     </script>
 </body>
 </html>

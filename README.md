@@ -36,11 +36,117 @@
 - `POST /{date}/edit-description/{id}` - Update entry description
 - `DELETE /{date}/delete/{id}` - Delete time entry
 
+## Multi-User Support & Authentication
+
+Punchcard now supports multi-user environments with **OpenID Connect (OIDC)** authentication:
+
+### Features
+- **OIDC Authentication**: Secure login with any OIDC provider (Keycloak, Auth0, Google, etc.)
+- **User Isolation**: Each user's time entries are completely isolated
+- **Session Management**: Secure session handling with automatic expiry
+- **User Profiles**: View personal statistics and account information
+- **Auto-configuration**: Automatically loads `.env` files for easy setup
+
+### Setup
+
+1. **Clone and build:**
+   ```bash
+   git clone <repository-url>
+   cd punchcard
+   go mod tidy
+   go build
+   ```
+
+2. **Configure OIDC Authentication:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your OIDC provider settings
+   ```
+
+3. **Run the application:**
+   ```bash
+   # Automatically loads .env file
+   ./punchcard
+   ```
+
+### Environment Variables
+
+#### Required for OIDC Authentication
+```bash
+OIDC_ISSUER_URL=https://your-provider.com        # OIDC provider URL
+OIDC_CLIENT_ID=your-client-id                    # OAuth client ID
+OIDC_CLIENT_SECRET=your-client-secret            # OAuth client secret
+OIDC_REDIRECT_URL=http://localhost:8080/callback # OAuth redirect URL
+```
+
+#### Optional Configuration
+```bash
+PORT=8080                    # Server port (default: 8080)
+DATABASE_URL=punchcard.db    # Database file path (default: punchcard.db)
+```
+
+### OIDC Provider Examples
+
+#### Keycloak
+```bash
+OIDC_ISSUER_URL=https://keycloak.example.com/auth/realms/myrealm
+OIDC_CLIENT_ID=punchcard
+OIDC_CLIENT_SECRET=your-keycloak-client-secret
+OIDC_REDIRECT_URL=http://localhost:8080/callback
+```
+
+#### Auth0
+```bash
+OIDC_ISSUER_URL=https://your-tenant.auth0.com/
+OIDC_CLIENT_ID=your-auth0-client-id
+OIDC_CLIENT_SECRET=your-auth0-client-secret
+OIDC_REDIRECT_URL=http://localhost:8080/callback
+```
+
+#### Google OAuth
+```bash
+OIDC_ISSUER_URL=https://accounts.google.com
+OIDC_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+OIDC_CLIENT_SECRET=your-google-client-secret
+OIDC_REDIRECT_URL=http://localhost:8080/callback
+```
+
+#### Gitea
+```bash
+OIDC_ISSUER_URL=https://gitea.example.com/
+OIDC_CLIENT_ID=your-gitea-client-id
+OIDC_CLIENT_SECRET=your-gitea-client-secret
+OIDC_REDIRECT_URL=http://localhost:8080/callback
+```
+
+### Database Schema
+
+The application automatically creates the required database tables on first run:
+- **users**: OIDC user information and profiles
+- **sessions**: Secure session management
+- **time_entries**: Time tracking data with user isolation
+
+> **Note**: OIDC authentication is required. The application will not start without proper OIDC configuration.
+
+### Routes
+
+#### Authentication Routes
+- `GET /login` - Login page
+- `GET /login/start` - Initiate OIDC flow
+- `GET /callback` - OIDC callback handler
+- `GET /logout` - Sign out
+- `GET /profile` - User profile page
+
+#### Application Routes (authenticated)
+- `GET /` - Redirects to today's date
+- `GET /{date}` - Main application page for specific date (YYYY-MM-DD)
+- `GET /month/{month}` - Monthly overview page (YYYY-MM format)
+- All existing API endpoints (scoped to authenticated user)
+
 ## Next Steps
 
 Future enhancements could include:
 - Yearly summary views and trends
-- User authentication and multi-user support
 - Export functionality (CSV, PDF reports)
 - Project categorization and tagging
 - Time goals and targets
@@ -49,3 +155,5 @@ Future enhancements could include:
 - REST API for integrations
 - Mobile-responsive improvements
 - Dark mode theme
+- Team/organization features
+- Advanced reporting and insights

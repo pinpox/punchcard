@@ -4,6 +4,9 @@ punchcard.db
 # Binary
 punchcard
 
+# Environment configuration with secrets
+.env
+
 # Temporary files
 *.tmp
 *.log

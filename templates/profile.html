@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+    <link rel="alternate icon" href="/static/logo.svg">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .profile-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
+
+        .profile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .profile-info h1 {
+            margin: 0;
+            color: #1a202c;
+            font-size: 2rem;
+        }
+
+        .profile-info .email {
+            color: #4a5568;
+            margin: 0.5rem 0 0 0;
+        }
+
+        .profile-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+            margin: 0;
+        }
+
+        .stat-label {
+            color: #4a5568;
+            margin: 0.5rem 0 0 0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .user-details {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+        }
+
+        .user-details h2 {
+            margin: 0 0 1rem 0;
+            color: #1a202c;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f7fafc;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .detail-value {
+            color: #1a202c;
+        }
+    </style>
+</head>
+<body>
+    <div class="profile-container">
+        <div class="profile-header">
+            <div class="profile-info">
+                <h1>{{.User.Name}}</h1>
+                <p class="email">{{.User.Email}}</p>
+            </div>
+            <div class="profile-actions">
+                <a href="/" class="btn btn-primary">Back to Time Tracker</a>
+                <a href="/logout" class="btn btn-secondary">Sign Out</a>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3 class="stat-value">{{.Stats.TotalEntries}}</h3>
+                <p class="stat-label">Total Entries</p>
+            </div>
+            <div class="stat-card">
+                <h3 class="stat-value">{{printf "%.1f" .Stats.TotalHoursThisWeek}}h</h3>
+                <p class="stat-label">This Week</p>
+            </div>
+            <div class="stat-card">
+                <h3 class="stat-value">{{printf "%.1f" .Stats.TotalHoursThisMonth}}h</h3>
+                <p class="stat-label">This Month</p>
+            </div>
+            <div class="stat-card">
+                <h3 class="stat-value">{{printf "%.1f" .Stats.TotalHoursAllTime}}h</h3>
+                <p class="stat-label">All Time</p>
+            </div>
+        </div>
+
+        <div class="user-details">
+            <h2>Account Details</h2>
+            <div class="detail-row">
+                <span class="detail-label">User ID:</span>
+                <span class="detail-value">{{.User.ID}}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Email:</span>
+                <span class="detail-value">{{.User.Email}}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Name:</span>
+                <span class="detail-value">{{.User.Name}}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Member Since:</span>
+                <span class="detail-value">{{.User.CreatedAt.Format "January 2, 2006"}}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Last Login:</span>
+                <span class="detail-value">{{.User.LastLoginAt.Format "January 2, 2006 at 3:04 PM"}}</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -11,20 +11,38 @@
 </head>
 <body>
     <div class="container">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <div class="current-day">{{.ViewDate.Format "January 2006"}}</div>
+                <div class="hours-summary">
+                    <a href="{{.TodayURL}}" class="week-hours" title="Go to today">This week: {{printf "%.1f" .WeekHours}}h</a>
+                    <span class="month-hours">This month: {{printf "%.1f" .MonthHours}}h</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <a href="{{.TodayURL}}" class="today-header-btn" title="Go to today">Today</a>
+                {{if .User}}
+                <div class="user-menu">
+                    <button class="user-btn" onclick="toggleUserMenu()" title="User menu">
+                        {{.User.Name}}
+                    </button>
+                    <div class="user-dropdown" id="user-dropdown">
+                        <a href="/profile">Profile</a>
+                        <a href="/logout">Sign Out</a>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </header>
+
+        <!-- Month Navigation -->
         <div class="month-header">
             <a href="{{.MonthStats.PrevMonthURL}}" class="nav-btn prev-btn" title="Previous month (←)">
                 ‹
             </a>
             <div class="month-display">
-                <div class="month-title">
-                    <div class="month-name">{{.MonthStats.MonthName}} {{.MonthStats.Year}}</div>
-                    <div class="month-summary">
-                        {{printf "%.1f" .MonthStats.TotalHours}}h total • {{.MonthStats.TotalEntries}} entries
-                    </div>
-                </div>
-                <div class="nav-buttons">
-                    <a href="{{.TodayURL}}" class="today-btn" title="Go to today">Today</a>
-                </div>
+                <!-- Today button removed - using week counter in header instead -->
             </div>
             <a href="{{.MonthStats.NextMonthURL}}" class="nav-btn next-btn" title="Next month (→)">
                 ›
@@ -88,6 +106,24 @@
     </div>
 
     <script>
+        // User menu toggle
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('user-dropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('show');
+            }
+        }
+
+        // Close user menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const userMenu = e.target.closest('.user-menu');
+            const dropdown = document.getElementById('user-dropdown');
+            
+            if (!userMenu && dropdown) {
+                dropdown.classList.remove('show');
+            }
+        });
+
         // Keyboard navigation
         document.addEventListener('keydown', function(e) {
             // Don't trigger when user is editing (input fields are focused)

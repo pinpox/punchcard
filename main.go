@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -55,22 +56,22 @@ func todayStart() time.Time {
 
 
 
-func (a *App) getTodaysEntries() []TimeEntry {
-	return a.getEntriesForDate(todayStart())
+func (a *App) getTodaysEntries(userID int) []TimeEntry {
+	return a.getEntriesForDate(userID, todayStart())
 }
 
-func (a *App) getEntriesForDate(date time.Time) []TimeEntry {
+func (a *App) getEntriesForDate(userID int, date time.Time) []TimeEntry {
 	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	dayEnd := dayStart.AddDate(0, 0, 1)
 	
 	query := `
 		SELECT id, description, date, start_time, end_time, is_running 
 		FROM time_entries 
-		WHERE date >= ? AND date < ?
+		WHERE user_id = ? AND date >= ? AND date < ?
 		ORDER BY start_time DESC
 	`
 	
-	rows, err := a.db.Query(query, dayStart.Format("2006-01-02"), dayEnd.Format("2006-01-02"))
+	rows, err := a.db.Query(query, userID, dayStart.Format("2006-01-02"), dayEnd.Format("2006-01-02"))
 	if err != nil {
 		log.Printf("Error querying entries: %v", err)
 		return []TimeEntry{}
@@ -109,14 +110,14 @@ func (a *App) getEntriesForDate(date time.Time) []TimeEntry {
 	return entries
 }
 
-func (a *App) createEntry(description string, date time.Time) (TimeEntry, error) {
+func (a *App) createEntry(userID int, description string, date time.Time) (TimeEntry, error) {
 	query := `
-		INSERT INTO time_entries (description, date, start_time, is_running)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO time_entries (user_id, description, date, start_time, is_running)
+		VALUES (?, ?, ?, ?, ?)
 	`
 	
 	now := time.Now()
-	result, err := a.db.Exec(query, description, date.Format("2006-01-02"), now.Unix(), true)
+	result, err := a.db.Exec(query, userID, description, date.Format("2006-01-02"), now.Unix(), true)
 	if err != nil {
 		return TimeEntry{}, err
 	}
@@ -155,18 +156,18 @@ func (a *App) updateEntry(entry TimeEntry) error {
 	return err
 }
 
-func (a *App) getEntryById(id int) (TimeEntry, error) {
+func (a *App) getEntryById(userID, id int) (TimeEntry, error) {
 	query := `
 		SELECT id, description, date, start_time, end_time, is_running 
 		FROM time_entries 
-		WHERE id = ?
+		WHERE id = ? AND user_id = ?
 	`
 	
 	var entry TimeEntry
 	var dateStr string
 	var startTimeUnix, endTimeUnix sql.NullInt64
 	
-	err := a.db.QueryRow(query, id).Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning)
+	err := a.db.QueryRow(query, id, userID).Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning)
 	if err != nil {
 		return TimeEntry{}, err
 	}
@@ -187,24 +188,37 @@ func (a *App) getEntryById(id int) (TimeEntry, error) {
 	return entry, nil
 }
 
-func (a *App) deleteEntry(id int) error {
-	query := `DELETE FROM time_entries WHERE id = ?`
-	_, err := a.db.Exec(query, id)
-	return err
+func (a *App) deleteEntry(userID, id int) error {
+	query := `DELETE FROM time_entries WHERE id = ? AND user_id = ?`
+	result, err := a.db.Exec(query, id, userID)
+	if err != nil {
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	
+	if rowsAffected == 0 {
+		return fmt.Errorf("entry not found or access denied")
+	}
+	
+	return nil
 }
 
-func (a *App) stopRunningEntries(date time.Time) ([]TimeEntry, error) {
+func (a *App) stopRunningEntries(userID int, date time.Time) ([]TimeEntry, error) {
 	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	dayEnd := dayStart.AddDate(0, 0, 1)
 	
-	// Get running entries for this date
+	// Get running entries for this date and user
 	query := `
 		SELECT id, description, date, start_time, end_time, is_running 
 		FROM time_entries 
-		WHERE date >= ? AND date < ? AND is_running = true
+		WHERE user_id = ? AND date >= ? AND date < ? AND is_running = true
 	`
 	
-	rows, err := a.db.Query(query, dayStart.Format("2006-01-02"), dayEnd.Format("2006-01-02"))
+	rows, err := a.db.Query(query, userID, dayStart.Format("2006-01-02"), dayEnd.Format("2006-01-02"))
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +318,7 @@ type MonthStats struct {
 	NextMonthURL string
 }
 
-func (a *App) getWeekStats(viewDate time.Time) []DayStats {
+func (a *App) getWeekStats(userID int, viewDate time.Time) []DayStats {
 	// Find Monday of the week containing viewDate
 	weekday := int(viewDate.Weekday())
 	if weekday == 0 { // Sunday
@@ -319,7 +333,7 @@ func (a *App) getWeekStats(viewDate time.Time) []DayStats {
 	// First pass: collect data and find max hours
 	for i := 0; i < 7; i++ {
 		day := monday.AddDate(0, 0, i)
-		dayEntries := a.getEntriesForDate(day)
+		dayEntries := a.getEntriesForDate(userID, day)
 		
 		// Calculate total duration for this day
 		var totalDuration time.Duration
@@ -379,8 +393,8 @@ func (a *App) getWeekStats(viewDate time.Time) []DayStats {
 	return weekStats
 }
 
-func (a *App) writeWeekChartUpdate(w http.ResponseWriter, viewDate time.Time) {
-	weekStats := a.getWeekStats(viewDate)
+func (a *App) writeWeekChartUpdate(w http.ResponseWriter, userID int, viewDate time.Time) {
+	weekStats := a.getWeekStats(userID, viewDate)
 	fmt.Fprintf(w, `<div hx-swap-oob="innerHTML:.chart-container">`)
 	for _, stat := range weekStats {
 		fmt.Fprintf(w, `<div class="day-bar`)
@@ -409,7 +423,7 @@ func (a *App) writeWeekChartUpdate(w http.ResponseWriter, viewDate time.Time) {
 	fmt.Fprintf(w, `</div>`)
 }
 
-func (a *App) getMonthStats(year int, month time.Month) MonthStats {
+func (a *App) getMonthStats(userID int, year int, month time.Month) MonthStats {
 	// First day of the month
 	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
 	// Last day of the month
@@ -435,7 +449,7 @@ func (a *App) getMonthStats(year int, month time.Month) MonthStats {
 	// Generate calendar grid (6 weeks max)
 	current := startDate
 	for current.Before(endDate.AddDate(0, 0, 1)) {
-		dayEntries := a.getEntriesForDate(current)
+		dayEntries := a.getEntriesForDate(userID, current)
 		
 		// Calculate total duration for this day
 		var dayDuration time.Duration
@@ -492,6 +506,8 @@ func (a *App) getMonthStats(year int, month time.Month) MonthStats {
 type App struct {
 	db        *sql.DB
 	templates *template.Template
+	auth      *AuthService
+	config    Config
 }
 
 func (e TimeEntry) Duration() time.Duration {
@@ -539,6 +555,9 @@ func (e TimeEntry) DurationString() string {
 }
 
 func NewApp() *App {
+	// Load configuration
+	config := LoadConfig()
+	
 	// Create template with custom functions
 	funcMap := template.FuncMap{
 		"sub": func(a, b int) int {
@@ -572,9 +591,22 @@ func NewApp() *App {
 		log.Fatal("Failed to initialize database:", err)
 	}
 	
+	// Validate and initialize auth service (OIDC required)
+	if err := config.ValidateOIDCConfig(); err != nil {
+		log.Fatal("OIDC configuration required:", err)
+	}
+	
+	authService, err := NewAuthService(db, config.OIDC)
+	if err != nil {
+		log.Fatal("Failed to initialize auth service:", err)
+	}
+	log.Printf("OIDC authentication enabled with issuer: %s", config.OIDC.IssuerURL)
+	
 	return &App{
 		db:        db,
 		templates: tmpl,
+		auth:      authService,
+		config:    config,
 	}
 }
 
@@ -594,18 +626,47 @@ func initDatabase() (*sql.DB, error) {
 
 func createTables(db *sql.DB) error {
 	schema := `
+	-- Users table for storing OIDC user information
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		oidc_subject TEXT UNIQUE NOT NULL,
+		email TEXT NOT NULL,
+		name TEXT NOT NULL,  -- Username (preferred_username or name claim)
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		last_login_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	
+	-- Sessions table for managing user sessions
+	CREATE TABLE IF NOT EXISTS sessions (
+		id TEXT PRIMARY KEY,
+		user_id INTEGER NOT NULL,
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);
+	
+	-- Time entries table with user ownership
 	CREATE TABLE IF NOT EXISTS time_entries (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
 		description TEXT NOT NULL,
 		date DATE NOT NULL,
 		start_time INTEGER,
 		end_time INTEGER,
 		is_running BOOLEAN DEFAULT FALSE,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);
 	
-	CREATE INDEX IF NOT EXISTS idx_date ON time_entries(date);
-	CREATE INDEX IF NOT EXISTS idx_running ON time_entries(is_running);
+	-- Create indexes for better performance
+	CREATE INDEX IF NOT EXISTS idx_users_oidc_subject ON users(oidc_subject);
+	CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+	CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+	CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+	CREATE INDEX IF NOT EXISTS idx_time_entries_user_id ON time_entries(user_id);
+	CREATE INDEX IF NOT EXISTS idx_time_entries_user_date ON time_entries(user_id, date);
+	CREATE INDEX IF NOT EXISTS idx_time_entries_date ON time_entries(date);
+	CREATE INDEX IF NOT EXISTS idx_time_entries_running ON time_entries(is_running);
 	`
 	
 	_, err := db.Exec(schema)
@@ -630,16 +691,33 @@ func (a *App) handleDateView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+	
 	// Get entries for this specific date
-	dateEntries := a.getEntriesForDate(viewDate)
+	dateEntries := a.getEntriesForDate(userID, viewDate)
 	
 	// Calculate previous and next day URLs
 	prevDay := viewDate.AddDate(0, 0, -1)
 	nextDay := viewDate.AddDate(0, 0, 1)
 	
 	// Get week statistics
-	weekStats := a.getWeekStats(viewDate)
+	weekStats := a.getWeekStats(userID, viewDate)
 	
+	// Calculate hours for header
+	weekHours := 0.0
+	for _, day := range weekStats {
+		weekHours += day.TotalHours
+	}
+	
+	monthStats := a.getMonthStats(userID, viewDate.Year(), viewDate.Month())
+	monthHours := monthStats.TotalHours
+
 	data := struct {
 		Entries     []TimeEntry
 		ViewDate    time.Time
@@ -651,6 +729,9 @@ func (a *App) handleDateView(w http.ResponseWriter, r *http.Request) {
 		IsToday     bool
 		WeekStats   []DayStats
 		MonthURL    string
+		WeekHours   float64
+		MonthHours  float64
+		User        *User
 	}{
 		Entries:     dateEntries,
 		ViewDate:    viewDate,
@@ -662,6 +743,9 @@ func (a *App) handleDateView(w http.ResponseWriter, r *http.Request) {
 		IsToday:     isSameDay(viewDate, time.Now()),
 		WeekStats:   weekStats,
 		MonthURL:    "/month/" + viewDate.Format("2006-01"),
+		WeekHours:   weekHours,
+		MonthHours:  monthHours,
+		User:        GetUserFromContext(r),
 	}
 	
 	if err := a.templates.ExecuteTemplate(w, "index.html", data); err != nil {
@@ -681,17 +765,39 @@ func (a *App) handleMonthView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Get month statistics
-	monthStats := a.getMonthStats(viewDate.Year(), viewDate.Month())
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
 	
+	// Get month statistics
+	monthStats := a.getMonthStats(userID, viewDate.Year(), viewDate.Month())
+	
+	// Calculate week hours for current week
+	now := time.Now()
+	weekStats := a.getWeekStats(userID, now)
+	weekHours := 0.0
+	for _, day := range weekStats {
+		weekHours += day.TotalHours
+	}
+
 	data := struct {
 		MonthStats  MonthStats
 		ViewDate    time.Time
 		TodayURL    string
+		WeekHours   float64
+		MonthHours  float64
+		User        *User
 	}{
 		MonthStats:  monthStats,
 		ViewDate:    viewDate,
 		TodayURL:    "/" + time.Now().Format("2006-01-02"),
+		WeekHours:   weekHours,
+		MonthHours:  monthStats.TotalHours,
+		User:        GetUserFromContext(r),
 	}
 	
 	if err := a.templates.ExecuteTemplate(w, "month.html", data); err != nil {
@@ -711,6 +817,14 @@ func (a *App) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+	
 	description := r.FormValue("description")
 	if description == "" {
 		description = "Untitled Task"
@@ -718,7 +832,7 @@ func (a *App) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 
 	// Stop any currently running timers for this date
 	dayStart := time.Date(entryDate.Year(), entryDate.Month(), entryDate.Day(), 0, 0, 0, 0, entryDate.Location())
-	stoppedEntries, err := a.stopRunningEntries(entryDate)
+	stoppedEntries, err := a.stopRunningEntries(userID, entryDate)
 	if err != nil {
 		log.Printf("Error stopping running entries: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -726,7 +840,7 @@ func (a *App) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create new entry and start it automatically
-	entry, err := a.createEntry(description, dayStart)
+	entry, err := a.createEntry(userID, description, dayStart)
 	if err != nil {
 		log.Printf("Error creating entry: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -755,7 +869,7 @@ func (a *App) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Update the week chart with out-of-band swap
-	a.writeWeekChartUpdate(w, entryDate)
+	a.writeWeekChartUpdate(w, userID, entryDate)
 }
 
 func (a *App) handleStartStop(w http.ResponseWriter, r *http.Request) {
@@ -776,8 +890,16 @@ func (a *App) handleStartStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the target entry
-	targetEntry, err := a.getEntryById(id)
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+
+	// Find the target entry (with user verification)
+	targetEntry, err := a.getEntryById(userID, id)
 	if err != nil {
 		http.Error(w, "Entry not found", http.StatusNotFound)
 		return
@@ -791,7 +913,7 @@ func (a *App) handleStartStop(w http.ResponseWriter, r *http.Request) {
 		targetEntry.EndTime = time.Now()
 	} else {
 		// Stop any other running timers from this date before starting this one
-		stoppedEntries, err = a.stopRunningEntries(viewDate)
+		stoppedEntries, err = a.stopRunningEntries(userID, viewDate)
 		if err != nil {
 			log.Printf("Error stopping running entries: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -838,7 +960,7 @@ func (a *App) handleStartStop(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Update the week chart with out-of-band swap
-	a.writeWeekChartUpdate(w, viewDate)
+	a.writeWeekChartUpdate(w, userID, viewDate)
 }
 
 func (a *App) handleUpdateTimer(w http.ResponseWriter, r *http.Request) {
@@ -850,8 +972,16 @@ func (a *App) handleUpdateTimer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+
 	// Find the entry and return its duration
-	entry, err := a.getEntryById(id)
+	entry, err := a.getEntryById(userID, id)
 	if err != nil {
 		http.Error(w, "Entry not found", http.StatusNotFound)
 		return
@@ -878,6 +1008,14 @@ func (a *App) handleEditTime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+
 	if r.Method == "POST" {
 		// Handle time update
 		timeStr := r.FormValue("duration")
@@ -888,7 +1026,7 @@ func (a *App) handleEditTime(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Find and update the entry
-		entry, err := a.getEntryById(id)
+		entry, err := a.getEntryById(userID, id)
 		if err != nil {
 			http.Error(w, "Entry not found", http.StatusNotFound)
 			return
@@ -920,7 +1058,7 @@ func (a *App) handleEditTime(w http.ResponseWriter, r *http.Request) {
 		}
 		
 		// Update the week chart with out-of-band swap
-		a.writeWeekChartUpdate(w, viewDate)
+		a.writeWeekChartUpdate(w, userID, viewDate)
 	}
 }
 
@@ -933,6 +1071,14 @@ func (a *App) handleEditDescription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+
 	description := r.FormValue("description")
 	if description == "" {
 		http.Error(w, "Description cannot be empty", http.StatusBadRequest)
@@ -940,7 +1086,7 @@ func (a *App) handleEditDescription(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find and update the entry
-	entry, err := a.getEntryById(id)
+	entry, err := a.getEntryById(userID, id)
 	if err != nil {
 		http.Error(w, "Entry not found", http.StatusNotFound)
 		return
@@ -983,8 +1129,16 @@ func (a *App) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+
 	// Delete the entry from database
-	if err := a.deleteEntry(id); err != nil {
+	if err := a.deleteEntry(userID, id); err != nil {
 		http.Error(w, "Entry not found", http.StatusNotFound)
 		return
 	}
@@ -993,7 +1147,7 @@ func (a *App) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	
 	// Check if we need to show empty state for this date
-	dateEntries := a.getEntriesForDate(viewDate)
+	dateEntries := a.getEntriesForDate(userID, viewDate)
 	if len(dateEntries) == 0 {
 		// Return empty state HTML with out-of-band swap to replace entries container
 		dayText := "this day"
@@ -1011,7 +1165,7 @@ func (a *App) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// Update the week chart with out-of-band swap
-	a.writeWeekChartUpdate(w, viewDate)
+	a.writeWeekChartUpdate(w, userID, viewDate)
 }
 
 // parseDuration parses simple time formats into time.Duration
@@ -1062,6 +1216,11 @@ func parseDuration(timeStr string) (time.Duration, error) {
 }
 
 func main() {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found, using environment variables: %v", err)
+	}
+	
 	app := NewApp()
 
 	r := mux.NewRouter()
@@ -1069,17 +1228,33 @@ func main() {
 	// Serve static files (CSS, JS)
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 	
+	// Authentication routes (unprotected)
+	r.HandleFunc("/login", app.handleLoginPage).Methods("GET")
+	r.HandleFunc("/login/start", app.handleLogin).Methods("GET")
+	r.HandleFunc("/callback", app.handleCallback).Methods("GET")
+	r.HandleFunc("/logout", app.handleLogout).Methods("GET", "POST")
+	
+	// Main application routes with authentication middleware
+	appRoutes := r.NewRoute().Subrouter()
+	appRoutes.Use(app.auth.AuthMiddleware)
+	
+	// Protected routes
+	appRoutes.HandleFunc("/profile", app.handleUserProfile).Methods("GET")
+	
 	// Routes
-	r.HandleFunc("/", app.handleIndex).Methods("GET")
-	r.HandleFunc("/month/{month:[0-9]{4}-[0-9]{2}}", app.handleMonthView).Methods("GET")
-	r.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}", app.handleDateView).Methods("GET")
-	r.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/add", app.handleAddEntry).Methods("POST")
-	r.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/start-stop/{id}", app.handleStartStop).Methods("POST")
-	r.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/update-timer/{id}", app.handleUpdateTimer).Methods("GET")
-	r.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/edit-time/{id}", app.handleEditTime).Methods("POST")
-	r.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/edit-description/{id}", app.handleEditDescription).Methods("POST")
-	r.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/delete/{id}", app.handleDeleteEntry).Methods("DELETE")
+	appRoutes.HandleFunc("/", app.handleIndex).Methods("GET")
+	appRoutes.HandleFunc("/month/{month:[0-9]{4}-[0-9]{2}}", app.handleMonthView).Methods("GET")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}", app.handleDateView).Methods("GET")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/add", app.handleAddEntry).Methods("POST")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/start-stop/{id}", app.handleStartStop).Methods("POST")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/update-timer/{id}", app.handleUpdateTimer).Methods("GET")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/edit-time/{id}", app.handleEditTime).Methods("POST")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/edit-description/{id}", app.handleEditDescription).Methods("POST")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/delete/{id}", app.handleDeleteEntry).Methods("DELETE")
 
-	fmt.Println("Server starting on :8080...")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	port := ":" + app.config.Port
+	fmt.Printf("Server starting on %s with OIDC authentication...\n", port)
+	fmt.Printf("Redirect URL: %s\n", app.config.OIDC.RedirectURL)
+	
+	log.Fatal(http.ListenAndServe(port, r))
 }

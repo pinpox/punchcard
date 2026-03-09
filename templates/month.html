@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punchcard - Monthly View</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="month-header">
+            <a href="{{.MonthStats.PrevMonthURL}}" class="nav-btn prev-btn" title="Previous month (←)">
+                ‹
+            </a>
+            <div class="month-display">
+                <div class="month-title">
+                    <div class="month-name">{{.MonthStats.MonthName}} {{.MonthStats.Year}}</div>
+                    <div class="month-summary">
+                        {{printf "%.1f" .MonthStats.TotalHours}}h total • {{.MonthStats.TotalEntries}} entries
+                    </div>
+                </div>
+                <div class="nav-buttons">
+                    <a href="{{.TodayURL}}" class="today-btn" title="Go to today">Today</a>
+                </div>
+            </div>
+            <a href="{{.MonthStats.NextMonthURL}}" class="nav-btn next-btn" title="Next month (→)">
+                ›
+            </a>
+        </div>
+
+        <!-- Monthly calendar -->
+        <div class="month-calendar">
+            <!-- Calendar header -->
+            <div class="calendar-header">
+                <div class="calendar-day-header">Sun</div>
+                <div class="calendar-day-header">Mon</div>
+                <div class="calendar-day-header">Tue</div>
+                <div class="calendar-day-header">Wed</div>
+                <div class="calendar-day-header">Thu</div>
+                <div class="calendar-day-header">Fri</div>
+                <div class="calendar-day-header">Sat</div>
+            </div>
+            
+            <!-- Calendar grid -->
+            <div class="calendar-grid">
+                {{range .MonthStats.Days}}
+                <div class="calendar-day {{if not .IsInMonth}}other-month{{end}} {{if .IsToday}}today{{end}} {{if .HasEntries}}has-entries{{end}}" 
+                     {{if .IsInMonth}}onclick="window.location.href='{{.Date.Format "/2006-01-02"}}'"{{end}}
+                     title="{{.Date.Format "2006-01-02"}}{{if .HasEntries}}: {{printf "%.1f" .TotalHours}}h, {{.EntryCount}} entries{{end}}">
+                    <div class="day-number">{{.DayNumber}}</div>
+                    {{if .HasEntries}}
+                        <div class="day-info">
+                            <div class="day-hours">{{printf "%.1fh" .TotalHours}}</div>
+                            {{if .FirstEntry}}
+                                <div class="day-task">{{.FirstEntry}}</div>
+                            {{end}}
+                            {{if gt .EntryCount 1}}
+                                <div class="more-entries">+{{sub .EntryCount 1}} more</div>
+                            {{end}}
+                        </div>
+                    {{end}}
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- Monthly summary -->
+        <div class="month-summary-section">
+            <h3>Monthly Summary</h3>
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <div class="stat-value">{{printf "%.1f" .MonthStats.TotalHours}}</div>
+                    <div class="stat-label">Total Hours</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-value">{{.MonthStats.TotalEntries}}</div>
+                    <div class="stat-label">Total Entries</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-value">{{printf "%.1f" (div .MonthStats.TotalHours (workingDaysInMonth .MonthStats.Year .MonthStats.Month))}}</div>
+                    <div class="stat-label">Avg Hours/Day</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            // Don't trigger when user is editing (input fields are focused)
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                window.location.href = '{{.MonthStats.PrevMonthURL}}';
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                window.location.href = '{{.MonthStats.NextMonthURL}}';
+            }
+        });
+    </script>
+</body>
+</html>

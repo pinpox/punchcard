@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Punchcard outline -->
+  <rect x="4" y="8" width="40" height="32" rx="2" ry="2" 
+        fill="none" stroke="#000" stroke-width="1.5"/>
+  
+  <!-- Punch holes representing binary data pattern -->
+  <!-- Top row: 10101 pattern -->
+  <rect x="8" y="12" width="2" height="3" fill="#000"/>
+  <rect x="14" y="12" width="2" height="3" fill="#000"/>
+  <rect x="20" y="12" width="2" height="3" fill="#000"/>
+  <rect x="32" y="12" width="2" height="3" fill="#000"/>
+  <rect x="38" y="12" width="2" height="3" fill="#000"/>
+  
+  <!-- Middle row: 01010 pattern -->
+  <rect x="11" y="18" width="2" height="3" fill="#000"/>
+  <rect x="17" y="18" width="2" height="3" fill="#000"/>
+  <rect x="29" y="18" width="2" height="3" fill="#000"/>
+  <rect x="35" y="18" width="2" height="3" fill="#000"/>
+  
+  <!-- Bottom row: 11001 pattern -->
+  <rect x="8" y="24" width="2" height="3" fill="#000"/>
+  <rect x="14" y="24" width="2" height="3" fill="#000"/>
+  <rect x="26" y="24" width="2" height="3" fill="#000"/>
+  <rect x="38" y="24" width="2" height="3" fill="#000"/>
+  
+  <!-- Time dots for visual interest -->
+  <circle cx="12" cy="34" r="1" fill="#000"/>
+  <circle cx="18" cy="34" r="1" fill="#000"/>
+  <circle cx="30" cy="34" r="1" fill="#000"/>
+  <circle cx="36" cy="34" r="1" fill="#000"/>
+</svg>

@@ -4,6 +4,9 @@ A simple daily time tracking webapp built with Go and HTMX.
 
 <img width="1151" height="745" alt="image" src="https://github.com/user-attachments/assets/d8b84a54-ff2f-4e69-9541-ea02547f9520" />
 
+<img width="1276" height="1033" alt="image" src="https://github.com/user-attachments/assets/25372777-0827-416f-8557-b75db95762cf" />
+
+
 
 ## Features
 

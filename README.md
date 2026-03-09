@@ -2,6 +2,9 @@
 
 A simple daily time tracking webapp built with Go and HTMX.
 
+<img width="1151" height="745" alt="image" src="https://github.com/user-attachments/assets/d8b84a54-ff2f-4e69-9541-ea02547f9520" />
+
+
 ## Features
 
 - ✅ Daily time tracking with date display (shows current day)

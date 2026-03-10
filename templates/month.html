@@ -16,8 +16,8 @@
             <div class="header-left">
                 <div class="current-day">{{.ViewDate.Format "January 2006"}}</div>
                 <div class="hours-summary">
-                    <a href="{{.TodayURL}}" class="week-hours" title="Go to today">This week: {{printf "%.1f" .WeekHours}}h</a>
-                    <span class="month-hours">This month: {{printf "%.1f" .MonthHours}}h</span>
+                    <a href="{{.TodayURL}}" class="week-hours" title="Go to today">This week: {{fmtHours .WeekHours}}</a>
+                    <span class="month-hours">This month: {{fmtHours .MonthHours}}</span>
                 </div>
             </div>
             <div class="header-right">
@@ -68,11 +68,11 @@
                 {{range .MonthStats.Days}}
                 <div class="calendar-day {{if not .IsInMonth}}other-month{{end}} {{if .IsToday}}today{{end}} {{if .HasEntries}}has-entries{{end}}" 
                      {{if .IsInMonth}}onclick="window.location.href='{{.Date.Format "/2006-01-02"}}'"{{end}}
-                     title="{{.Date.Format "2006-01-02"}}{{if .HasEntries}}: {{printf "%.1f" .TotalHours}}h, {{.EntryCount}} entries{{end}}">
+                     title="{{.Date.Format "2006-01-02"}}{{if .HasEntries}}: {{fmtHours .TotalHours}}, {{.EntryCount}} entries{{end}}">
                     <div class="day-number">{{.DayNumber}}</div>
                     {{if .HasEntries}}
                         <div class="day-info">
-                            <div class="day-hours">{{printf "%.1fh" .TotalHours}}</div>
+                            <div class="day-hours">{{fmtHours .TotalHours}}</div>
                             {{if .FirstEntry}}
                                 <div class="day-task">{{.FirstEntry}}</div>
                             {{end}}
@@ -91,7 +91,7 @@
             <h3>Monthly Summary</h3>
             <div class="summary-stats">
                 <div class="summary-stat">
-                    <div class="stat-value">{{printf "%.1f" .MonthStats.TotalHours}}</div>
+                    <div class="stat-value">{{fmtHours .MonthStats.TotalHours}}</div>
                     <div class="stat-label">Total Hours</div>
                 </div>
                 <div class="summary-stat">
@@ -99,7 +99,7 @@
                     <div class="stat-label">Total Entries</div>
                 </div>
                 <div class="summary-stat">
-                    <div class="stat-value">{{printf "%.1f" (div .MonthStats.TotalHours (workingDaysInMonth .MonthStats.Year .MonthStats.Month))}}</div>
+                    <div class="stat-value">{{fmtHours (div .MonthStats.TotalHours (workingDaysInMonth .MonthStats.Year .MonthStats.Month))}}</div>
                     <div class="stat-label">Avg Hours/Day</div>
                 </div>
             </div>

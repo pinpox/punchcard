@@ -276,6 +276,20 @@ func isSameDay(date1, date2 time.Time) bool {
 	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
+func formatHours(hours float64) string {
+	if hours == 0 {
+		return "0.0h"
+	}
+	if hours < 0.05 {
+		minutes := int(hours * 60)
+		if minutes < 1 {
+			return "<1m"
+		}
+		return fmt.Sprintf("%dm", minutes)
+	}
+	return fmt.Sprintf("%.1fh", hours)
+}
+
 func parseDate(dateStr string) (time.Time, error) {
 	// Try simple date format first
 	if date, err := time.Parse("2006-01-02", dateStr); err == nil {
@@ -417,14 +431,14 @@ func (a *App) writeWeekChartUpdate(w http.ResponseWriter, userID int, viewDate t
 		if stat.IsViewDay {
 			fmt.Fprintf(w, ` selected`)
 		}
-		fmt.Fprintf(w, `" onclick="window.location.href='%s'" title="%s, %s: %.1fh">`, 
+		fmt.Fprintf(w, `" onclick="window.location.href='%s'" title="%s, %s: %s">`, 
 			stat.Date.Format("/2006-01-02"), 
 			stat.DayName, 
 			stat.Date.Format("2006-01-02"), 
-			stat.TotalHours)
+			formatHours(stat.TotalHours))
 		fmt.Fprintf(w, `<div class="hours-label">`)
 		if stat.TotalHours > 0.0 {
-			fmt.Fprintf(w, `%.1fh`, stat.TotalHours)
+			fmt.Fprintf(w, `%s`, formatHours(stat.TotalHours))
 		}
 		fmt.Fprintf(w, `</div>`)
 		fmt.Fprintf(w, `<div class="bar" style="height: %dpx;"></div>`, stat.BarHeight)
@@ -584,6 +598,7 @@ func NewApp() *App {
 			}
 			return a / b
 		},
+		"fmtHours": formatHours,
 		"workingDaysInMonth": func(year int, month time.Month) float64 {
 			firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
 			lastDay := firstDay.AddDate(0, 1, 0).AddDate(0, 0, -1)

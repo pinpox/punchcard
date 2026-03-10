@@ -21,8 +21,8 @@
                        value="{{.ViewDate.Format "2006-01-02"}}"
                        onchange="goToSelectedDate(this.value)">
                 <div class="hours-summary">
-                    <a href="/" class="week-hours" title="Go to today">This week: {{printf "%.1f" .WeekHours}}h</a>
-                    <a href="{{.MonthURL}}" class="month-hours" title="Go to month view">This month: {{printf "%.1f" .MonthHours}}h</a>
+                    <a href="/" class="week-hours" title="Go to today">This week: {{fmtHours .WeekHours}}</a>
+                    <a href="{{.MonthURL}}" class="month-hours" title="Go to month view">This month: {{fmtHours .MonthHours}}</a>
                 </div>
             </div>
             <div class="header-right">
@@ -63,8 +63,8 @@
                 {{range .WeekStats}}
                 <div class="day-bar {{if .IsToday}}today{{end}} {{if .IsViewDay}}selected{{end}}" 
                      onclick="window.location.href='{{.Date.Format "/2006-01-02"}}'"
-                     title="{{.DayName}}, {{.Date.Format "2006-01-02"}}: {{printf "%.1f" .TotalHours}}h">
-                    <div class="hours-label">{{if gt .TotalHours 0.0}}{{printf "%.1f" .TotalHours}}h{{end}}</div>
+                     title="{{.DayName}}, {{.Date.Format "2006-01-02"}}: {{fmtHours .TotalHours}}">
+                    <div class="hours-label">{{if gt .TotalHours 0.0}}{{fmtHours .TotalHours}}{{end}}</div>
                     <div class="bar" style="height: {{.BarHeight}}px;"></div>
                     <div class="day-label">
                         <div class="day-name">{{.DayName}}</div>

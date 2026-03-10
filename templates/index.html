@@ -114,7 +114,8 @@
                 if (method === 'innerHTML') {
                     target.innerHTML = oob.innerHTML;
                 } else if (method === 'outerHTML') {
-                    target.outerHTML = oob.innerHTML;
+                    oob.removeAttribute('hx-swap-oob');
+                    target.outerHTML = oob.outerHTML;
                 }
             });
         }

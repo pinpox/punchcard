@@ -270,6 +270,19 @@ func (a *App) stopRunningEntries(userID int, date time.Time) ([]TimeEntry, error
 	return stoppedEntries, nil
 }
 
+// combineDateTimeRange takes the entry's date and the original start/end times,
+// and returns adjusted begin/end times anchored to the entry's date while preserving
+// the original duration. This handles midnight-crossing entries correctly.
+func combineDateTimeRange(date, start, end time.Time) (time.Time, time.Time) {
+	begin := time.Date(date.Year(), date.Month(), date.Day(),
+		start.Hour(), start.Minute(), start.Second(), 0, start.Location())
+
+	// Preserve the original duration rather than combining date+time independently,
+	// which would break for entries that cross midnight.
+	duration := end.Sub(start)
+	return begin, begin.Add(duration)
+}
+
 func isSameDay(date1, date2 time.Time) bool {
 	y1, m1, d1 := date1.Date()
 	y2, m2, d2 := date2.Date()
@@ -858,7 +871,6 @@ type KimaiTimeEntry struct {
 	Description string `json:"description"`
 	Tags        string `json:"tags,omitempty"`
 	Billable    bool   `json:"billable"`
-	Exported    bool   `json:"exported"`
 }
 
 func (a *App) handleMonthExport(w http.ResponseWriter, r *http.Request) {
@@ -889,17 +901,21 @@ func (a *App) handleMonthExport(w http.ResponseWriter, r *http.Request) {
 		kimaiEntry := KimaiTimeEntry{
 			Project:     1, // Default project ID - users should modify this
 			Activity:    1, // Default activity ID - users should modify this
-			Begin:       entry.StartTime.Format("2006-01-02T15:04:05"),
 			Description: entry.Description,
 			Billable:    entry.Billable,
-			Exported:    false,
 		}
-		
-		// Only add end time if timer is stopped
+
 		if !entry.IsRunning && !entry.EndTime.IsZero() {
-			kimaiEntry.End = entry.EndTime.Format("2006-01-02T15:04:05")
+			beginTime, endTime := combineDateTimeRange(entry.Date, entry.StartTime, entry.EndTime)
+			kimaiEntry.Begin = beginTime.Format("2006-01-02T15:04:05")
+			kimaiEntry.End = endTime.Format("2006-01-02T15:04:05")
+		} else {
+			// Running entry: anchor start to entry date, no end time
+			beginTime := time.Date(entry.Date.Year(), entry.Date.Month(), entry.Date.Day(),
+				entry.StartTime.Hour(), entry.StartTime.Minute(), entry.StartTime.Second(), 0, entry.StartTime.Location())
+			kimaiEntry.Begin = beginTime.Format("2006-01-02T15:04:05")
 		}
-		
+
 		kimaiEntries = append(kimaiEntries, kimaiEntry)
 	}
 	
@@ -995,17 +1011,21 @@ func (a *App) handleDateExport(w http.ResponseWriter, r *http.Request) {
 		kimaiEntry := KimaiTimeEntry{
 			Project:     1, // Default project ID - users should modify this
 			Activity:    1, // Default activity ID - users should modify this
-			Begin:       entry.StartTime.Format("2006-01-02T15:04:05"),
 			Description: entry.Description,
 			Billable:    entry.Billable,
-			Exported:    false,
 		}
-		
-		// Only add end time if timer is stopped
+
 		if !entry.IsRunning && !entry.EndTime.IsZero() {
-			kimaiEntry.End = entry.EndTime.Format("2006-01-02T15:04:05")
+			beginTime, endTime := combineDateTimeRange(entry.Date, entry.StartTime, entry.EndTime)
+			kimaiEntry.Begin = beginTime.Format("2006-01-02T15:04:05")
+			kimaiEntry.End = endTime.Format("2006-01-02T15:04:05")
+		} else {
+			// Running entry: anchor start to entry date, no end time
+			beginTime := time.Date(entry.Date.Year(), entry.Date.Month(), entry.Date.Day(),
+				entry.StartTime.Hour(), entry.StartTime.Minute(), entry.StartTime.Second(), 0, entry.StartTime.Location())
+			kimaiEntry.Begin = beginTime.Format("2006-01-02T15:04:05")
 		}
-		
+
 		kimaiEntries = append(kimaiEntries, kimaiEntry)
 	}
 	
@@ -1254,9 +1274,12 @@ func (a *App) handleEditTime(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Set manual duration by adjusting the times
-		entry.StartTime = time.Now().Add(-duration)
-		entry.EndTime = time.Now()
+		// Set manual duration anchored to the entry's actual date
+		// Place the end time at 17:00 on the entry's date, start time = end - duration
+		entryDate := entry.Date
+		endTime := time.Date(entryDate.Year(), entryDate.Month(), entryDate.Day(), 17, 0, 0, 0, time.Local)
+		entry.StartTime = endTime.Add(-duration)
+		entry.EndTime = endTime
 
 		// Update in database
 		if err := a.updateEntry(entry); err != nil {

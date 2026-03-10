@@ -1,0 +1,36 @@
+[
+  {
+    "activity": 1,
+    "project": 1,
+    "user": 1,
+    "tags": [],
+    "id": 1,
+    "begin": "2026-03-10T10:00:00+0100",
+    "end": "2026-03-10T12:30:00+0100",
+    "duration": 9000,
+    "break": 0,
+    "description": "Test entry",
+    "rate": 0.0,
+    "internalRate": 0.0,
+    "exported": false,
+    "billable": true,
+    "metaFields": []
+  },
+  {
+    "activity": 1,
+    "project": 1,
+    "user": 1,
+    "tags": [],
+    "id": 2,
+    "begin": "2026-03-09T09:45:00+0100",
+    "end": "2026-03-09T11:45:00+0100",
+    "duration": 7200,
+    "break": 0,
+    "description": null,
+    "rate": 0.0,
+    "internalRate": 0.0,
+    "exported": false,
+    "billable": true,
+    "metaFields": []
+  }
+]

@@ -19,7 +19,7 @@
 
 - **OIDC Authentication**: Secure login with any OIDC provider (Keycloak, Auth0, Google, etc.)
 - **Billable Tracking**: Mark time entries as billable/non-billable with visual indicators
-- **Kimai JSON export**: Times can be exported as Kimai-compatible JSON
+- **Kimai JSON export**: Times can be exported as Kimai-compatible JSON (see [Importing to Kimai](#importing-to-kimai))
 - **Billable/Unbillable**: Each time entry has a billable checkbox
 
 All time entries (both billable and non-billable) are included in exports with
@@ -39,3 +39,31 @@ OIDC_CLIENT_ID=your-client-id                # OAuth client ID
 OIDC_CLIENT_SECRET=your-client-secret        # OAuth client secret
 OIDC_REDIRECT_URL=http://domain.tld/callback # OAuth redirect URL
 ```
+
+### Importing to Kimai
+
+Download the JSON export from the punchcard UI (daily or monthly), then import
+each entry to Kimai using curl:
+
+```bash
+export KIMAI_API_TOKEN="<your token>"
+export KIMAI_INSTANCE="https://your-kimai-instance"
+export PUNCHCARD_EXPORT="punchcard-export-2026-03.json"
+
+jq -c '.[]' $PUNCHCARD_EXPORT | while IFS= read -r entry; do
+  curl -s -X POST "$KIMAI_INSTANCE/api/timesheets" \
+    -H "Authorization: Bearer $KIMAI_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -d "$entry"
+  echo
+done
+```
+
+To create an API token, go to your Kimai profile page → **API** tab → create a
+new token.
+
+> **Note:** Kimai has no deduplication - importing the same file twice will
+> create duplicate entries. The `billable` field requires the `edit_billable`
+> permission in Kimai; if your user lacks it, strip the field with
+> `jq -c '.[] | del(.billable)'` instead.

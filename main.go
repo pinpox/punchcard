@@ -2,9 +2,11 @@ package main
 
 import (
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
 	"strconv"
@@ -15,6 +17,12 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+//go:embed templates/*.html
+var templateFS embed.FS
+
+//go:embed static/*
+var staticFS embed.FS
 
 type TimeEntry struct {
 	ID          int       `json:"id"`
@@ -590,7 +598,7 @@ func NewApp() *App {
 		},
 	}
 	
-	tmpl := template.Must(template.New("").Funcs(funcMap).ParseGlob("templates/*.html"))
+	tmpl := template.Must(template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.html"))
 	
 	// Initialize database
 	db, err := initDatabase()
@@ -1461,8 +1469,12 @@ func main() {
 
 	r := mux.NewRouter()
 	
-	// Serve static files (CSS, JS)
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
+	// Serve static files (CSS, JS) from embedded filesystem
+	staticSub, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		log.Fatal("Failed to create static sub-filesystem:", err)
+	}
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(staticSub))))
 	
 	// Authentication routes (unprotected)
 	r.HandleFunc("/login", app.handleLoginPage).Methods("GET")

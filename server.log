@@ -1,0 +1,9 @@
+Server starting on :8080...
+2026/03/09 10:50:55 Error stopping entry: attempt to write a readonly database
+2026/03/09 10:50:55 Error creating entry: attempt to write a readonly database
+2026/03/09 10:50:55 Error updating entry: attempt to write a readonly database
+2026/03/09 10:51:05 Error stopping entry: attempt to write a readonly database
+2026/03/09 10:51:05 Error creating entry: attempt to write a readonly database
+2026/03/09 10:51:18 Error stopping entry: attempt to write a readonly database
+2026/03/09 10:51:18 Error creating entry: attempt to write a readonly database
+2026/03/09 11:16:19 Error updating entry: attempt to write a readonly database

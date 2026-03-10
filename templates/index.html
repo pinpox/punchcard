@@ -26,6 +26,7 @@
                 </div>
             </div>
             <div class="header-right">
+                <a href="/{{.ViewDate.Format "2006-01-02"}}.json" class="export-btn" title="Export day as JSON" download>⬇ JSON</a>
                 {{if not .IsToday}}
                 <a href="/" class="today-header-btn" title="Go to today">Today</a>
                 {{end}}
@@ -99,6 +100,25 @@
     </div>
 
     <script>
+        // Process hx-swap-oob elements from fetch responses (e.g., week chart updates)
+        function processOobSwaps(container) {
+            const oobElements = container.querySelectorAll('[hx-swap-oob]');
+            oobElements.forEach(oob => {
+                const attr = oob.getAttribute('hx-swap-oob');
+                const colonIdx = attr.indexOf(':');
+                if (colonIdx === -1) return;
+                const method = attr.substring(0, colonIdx);
+                const selector = attr.substring(colonIdx + 1).trim();
+                const target = document.querySelector(selector);
+                if (!target) return;
+                if (method === 'innerHTML') {
+                    target.innerHTML = oob.innerHTML;
+                } else if (method === 'outerHTML') {
+                    target.outerHTML = oob.innerHTML;
+                }
+            });
+        }
+
         // Auto-update running timers every second
         setInterval(() => {
             const runningTimers = document.querySelectorAll('.timer-display[data-running="true"]');
@@ -234,15 +254,28 @@
             })
             .then(response => response.text())
             .then(html => {
-                // Replace the entire entry with the updated HTML
+                // Parse response and extract only the entry element,
+                // ignoring any hx-swap-oob elements appended by the server
+                const temp = document.createElement('div');
+                temp.innerHTML = html;
+                const entryHtml = temp.querySelector(`#entry-${entryId}`);
+
                 const entryElement = document.getElementById(`entry-${entryId}`);
-                entryElement.outerHTML = html;
+                if (entryHtml) {
+                    entryElement.outerHTML = entryHtml.outerHTML;
+                } else {
+                    // Fallback: use first child element
+                    entryElement.outerHTML = temp.children[0].outerHTML;
+                }
 
                 // Tell HTMX to process the new content
                 const newElement = document.getElementById(`entry-${entryId}`);
                 if (newElement && window.htmx) {
                     window.htmx.process(newElement);
                 }
+
+                // Also process OOB swaps for the week chart update
+                processOobSwaps(temp);
             })
             .catch(err => {
                 console.error('Error updating time:', err);
@@ -348,15 +381,27 @@
             })
             .then(response => response.text())
             .then(html => {
-                // Replace the entire entry with the updated HTML
+                // Parse response and extract only the entry element,
+                // ignoring any hx-swap-oob elements appended by the server
+                const temp = document.createElement('div');
+                temp.innerHTML = html;
+                const entryHtml = temp.querySelector(`#entry-${entryId}`);
+
                 const entryElement = document.getElementById(`entry-${entryId}`);
-                entryElement.outerHTML = html;
+                if (entryHtml) {
+                    entryElement.outerHTML = entryHtml.outerHTML;
+                } else {
+                    entryElement.outerHTML = temp.children[0].outerHTML;
+                }
 
                 // Tell HTMX to process the new content
                 const newElement = document.getElementById(`entry-${entryId}`);
                 if (newElement && window.htmx) {
                     window.htmx.process(newElement);
                 }
+
+                // Also process OOB swaps for the week chart update
+                processOobSwaps(temp);
             })
             .catch(err => {
                 console.error('Error updating description:', err);

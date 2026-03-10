@@ -435,12 +435,12 @@ body {
 
 .timer-display {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 1.5em;
+    font-size: 1em;
     font-weight: bold;
     color: #2d3748;
     min-width: 100px;
     text-align: center;
-    padding: 10px;
+    padding: 12px 10px;
     background: #f7fafc;
     border-radius: 6px;
     border: 1px solid #e2e8f0;
@@ -466,7 +466,7 @@ body {
 
 .time-edit-input {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 1.5em;
+    font-size: 1em;
     font-weight: bold;
     color: #2d3748;
     text-align: center;
@@ -935,6 +935,27 @@ body {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
+.export-btn {
+    background: white;
+    color: #667eea;
+    border: 1px solid #e2e8f0;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.export-btn:hover {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
 /* User Menu Styles */
 .user-menu {
     position: relative;
@@ -1001,6 +1022,60 @@ body {
     color: #2d3748;
 }
 
+/* Billable Checkbox Styles */
+.billable-checkbox {
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.billable-btn {
+    width: 28px;
+    height: 28px;
+    border: 2px solid #cbd5e0;
+    border-radius: 6px;
+    background: white;
+    color: #718096;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+    line-height: 1;
+}
+
+.billable-btn:hover {
+    border-color: #2d3748;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.billable-btn.billable-active {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    border-color: #38a169;
+    color: white;
+    box-shadow: 0 2px 6px rgba(72, 187, 120, 0.3);
+}
+
+.billable-btn.billable-active:hover {
+    background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+    border-color: #2f855a;
+    box-shadow: 0 3px 8px rgba(72, 187, 120, 0.4);
+}
+
+/* Update entry-row to accommodate billable checkbox */
+.entry-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    width: 100%;
+}
+
 /* Responsive adjustments for header */
 @media (max-width: 768px) {
     .top-header {
@@ -1021,5 +1096,15 @@ body {
     .hours-summary {
         justify-content: center;
         flex-wrap: wrap;
+    }
+    
+    .billable-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 12px;
+    }
+    
+    .billable-checkbox {
+        margin-right: 8px;
     }
 }

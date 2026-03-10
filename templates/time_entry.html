@@ -1,6 +1,16 @@
 {{define "time_entry.html"}}
 <div class="time-entry" id="entry-{{.ID}}">
     <div class="entry-row">
+        <div class="billable-checkbox">
+            <button class="billable-btn {{if .Billable}}billable-active{{end}}"
+                    hx-post="/{{.Date.Format "2006-01-02"}}/toggle-billable/{{.ID}}"
+                    hx-target="#entry-{{.ID}}"
+                    hx-swap="outerHTML"
+                    title="{{if .Billable}}Billable (click to make non-billable){{else}}Non-billable (click to make billable){{end}}">
+                {{if .Billable}}${{end}}
+            </button>
+        </div>
+        
         <div class="task-info" onclick="editDescription(this, {{.ID}}, '{{.Date.Format "2006-01-02"}}')" title="Click to edit (Enter or click away to save, Shift+Enter for newline, Esc to cancel)">
             <div class="task-title">{{.Title}}</div>
             {{if .DescriptionLines}}

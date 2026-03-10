@@ -21,6 +21,7 @@
                 </div>
             </div>
             <div class="header-right">
+                <a href="/month/{{.ViewDate.Format "2006-01"}}.json" class="export-btn" title="Export month as JSON" download>⬇ JSON</a>
                 <a href="{{.TodayURL}}" class="today-header-btn" title="Go to today">Today</a>
                 {{if .User}}
                 <div class="user-menu">

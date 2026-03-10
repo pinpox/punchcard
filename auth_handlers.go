@@ -220,13 +220,13 @@ func (a *App) getUserStats(userID int) (*UserStats, error) {
 		log.Printf("Error getting total entries: %v", err)
 	}
 
-	// Total hours this week
+	// Total hours this week (only billable)
 	now := todayStart()
 	weekStart := now.AddDate(0, 0, -int(now.Weekday()))
 	weekEnd := weekStart.AddDate(0, 0, 7)
 	
 	rows, err := a.db.Query(`
-		SELECT start_time, end_time, is_running
+		SELECT start_time, end_time, is_running, billable
 		FROM time_entries 
 		WHERE user_id = ? AND date >= ? AND date < ?
 	`, userID, weekStart.Format("2006-01-02"), weekEnd.Format("2006-01-02"))
@@ -235,30 +235,33 @@ func (a *App) getUserStats(userID int) (*UserStats, error) {
 		defer rows.Close()
 		for rows.Next() {
 			var startTime, endTime sql.NullInt64
-			var isRunning bool
+			var isRunning, billable bool
 			
-			if err := rows.Scan(&startTime, &endTime, &isRunning); err == nil {
-				entry := TimeEntry{
-					IsRunning: isRunning,
+			if err := rows.Scan(&startTime, &endTime, &isRunning, &billable); err == nil {
+				if billable { // Only count billable hours
+					entry := TimeEntry{
+						IsRunning: isRunning,
+						Billable:  billable,
+					}
+					if startTime.Valid {
+						entry.StartTime = time.Unix(startTime.Int64, 0)
+					}
+					if endTime.Valid {
+						entry.EndTime = time.Unix(endTime.Int64, 0)
+					}
+					
+					stats.TotalHoursThisWeek += entry.Duration().Hours()
 				}
-				if startTime.Valid {
-					entry.StartTime = time.Unix(startTime.Int64, 0)
-				}
-				if endTime.Valid {
-					entry.EndTime = time.Unix(endTime.Int64, 0)
-				}
-				
-				stats.TotalHoursThisWeek += entry.Duration().Hours()
 			}
 		}
 	}
 
-	// Total hours this month
+	// Total hours this month (only billable)
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	monthEnd := monthStart.AddDate(0, 1, 0)
 	
 	rows, err = a.db.Query(`
-		SELECT start_time, end_time, is_running
+		SELECT start_time, end_time, is_running, billable
 		FROM time_entries 
 		WHERE user_id = ? AND date >= ? AND date < ?
 	`, userID, monthStart.Format("2006-01-02"), monthEnd.Format("2006-01-02"))
@@ -267,27 +270,30 @@ func (a *App) getUserStats(userID int) (*UserStats, error) {
 		defer rows.Close()
 		for rows.Next() {
 			var startTime, endTime sql.NullInt64
-			var isRunning bool
+			var isRunning, billable bool
 			
-			if err := rows.Scan(&startTime, &endTime, &isRunning); err == nil {
-				entry := TimeEntry{
-					IsRunning: isRunning,
+			if err := rows.Scan(&startTime, &endTime, &isRunning, &billable); err == nil {
+				if billable { // Only count billable hours
+					entry := TimeEntry{
+						IsRunning: isRunning,
+						Billable:  billable,
+					}
+					if startTime.Valid {
+						entry.StartTime = time.Unix(startTime.Int64, 0)
+					}
+					if endTime.Valid {
+						entry.EndTime = time.Unix(endTime.Int64, 0)
+					}
+					
+					stats.TotalHoursThisMonth += entry.Duration().Hours()
 				}
-				if startTime.Valid {
-					entry.StartTime = time.Unix(startTime.Int64, 0)
-				}
-				if endTime.Valid {
-					entry.EndTime = time.Unix(endTime.Int64, 0)
-				}
-				
-				stats.TotalHoursThisMonth += entry.Duration().Hours()
 			}
 		}
 	}
 
-	// Total hours all time
+	// Total hours all time (only billable)
 	rows, err = a.db.Query(`
-		SELECT start_time, end_time, is_running
+		SELECT start_time, end_time, is_running, billable
 		FROM time_entries 
 		WHERE user_id = ?
 	`, userID)
@@ -296,20 +302,23 @@ func (a *App) getUserStats(userID int) (*UserStats, error) {
 		defer rows.Close()
 		for rows.Next() {
 			var startTime, endTime sql.NullInt64
-			var isRunning bool
+			var isRunning, billable bool
 			
-			if err := rows.Scan(&startTime, &endTime, &isRunning); err == nil {
-				entry := TimeEntry{
-					IsRunning: isRunning,
+			if err := rows.Scan(&startTime, &endTime, &isRunning, &billable); err == nil {
+				if billable { // Only count billable hours
+					entry := TimeEntry{
+						IsRunning: isRunning,
+						Billable:  billable,
+					}
+					if startTime.Valid {
+						entry.StartTime = time.Unix(startTime.Int64, 0)
+					}
+					if endTime.Valid {
+						entry.EndTime = time.Unix(endTime.Int64, 0)
+					}
+					
+					stats.TotalHoursAllTime += entry.Duration().Hours()
 				}
-				if startTime.Valid {
-					entry.StartTime = time.Unix(startTime.Int64, 0)
-				}
-				if endTime.Valid {
-					entry.EndTime = time.Unix(endTime.Int64, 0)
-				}
-				
-				stats.TotalHoursAllTime += entry.Duration().Hours()
 			}
 		}
 	}

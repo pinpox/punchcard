@@ -46,6 +46,7 @@ Punchcard now supports multi-user environments with **OpenID Connect (OIDC)** au
 - **Session Management**: Secure session handling with automatic expiry
 - **User Profiles**: View personal statistics and account information
 - **Auto-configuration**: Automatically loads `.env` files for easy setup
+- **Billable Tracking**: Mark time entries as billable/non-billable with visual indicators
 
 ### Setup
 
@@ -168,6 +169,26 @@ Export your time tracking data in Kimai-compatible JSON format:
 ```
 
 **Note**: You'll need to modify the `project` and `activity` IDs to match your Kimai instance before importing.
+
+### Billable Time Tracking
+
+Each time entry has a billable checkbox with visual indicators:
+
+- **Green $ symbol**: Billable time (counts toward totals)
+- **Empty checkbox**: Non-billable time (excluded from totals)
+
+**Features:**
+- **Click to toggle**: Simple click toggles billable status
+- **Visual feedback**: Green dollar sign for billable, empty for non-billable
+- **Smart totals**: Week/month hour totals only include billable time
+- **Export ready**: Billable status included in Kimai export format
+
+Only billable hours are counted in:
+- Header week/month totals
+- Profile statistics  
+- Calendar view summaries
+
+All time entries (both billable and non-billable) are included in exports with correct status.
 
 ## Next Steps
 

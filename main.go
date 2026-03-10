@@ -23,6 +23,7 @@ type TimeEntry struct {
 	StartTime   time.Time `json:"start_time"`
 	EndTime     time.Time `json:"end_time"`
 	IsRunning   bool      `json:"is_running"`
+	Billable    bool      `json:"billable"`
 }
 
 func (e TimeEntry) Title() string {
@@ -66,7 +67,7 @@ func (a *App) getEntriesForDate(userID int, date time.Time) []TimeEntry {
 	dayEnd := dayStart.AddDate(0, 0, 1)
 	
 	query := `
-		SELECT id, description, date, start_time, end_time, is_running 
+		SELECT id, description, date, start_time, end_time, is_running, billable 
 		FROM time_entries 
 		WHERE user_id = ? AND date >= ? AND date < ?
 		ORDER BY start_time DESC
@@ -85,7 +86,7 @@ func (a *App) getEntriesForDate(userID int, date time.Time) []TimeEntry {
 		var dateStr string
 		var startTimeUnix, endTimeUnix sql.NullInt64
 		
-		err := rows.Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning)
+		err := rows.Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning, &entry.Billable)
 		if err != nil {
 			log.Printf("Error scanning entry: %v", err)
 			continue
@@ -113,12 +114,12 @@ func (a *App) getEntriesForDate(userID int, date time.Time) []TimeEntry {
 
 func (a *App) createEntry(userID int, description string, date time.Time) (TimeEntry, error) {
 	query := `
-		INSERT INTO time_entries (user_id, description, date, start_time, is_running)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO time_entries (user_id, description, date, start_time, is_running, billable)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
 	
 	now := time.Now()
-	result, err := a.db.Exec(query, userID, description, date.Format("2006-01-02"), now.Unix(), true)
+	result, err := a.db.Exec(query, userID, description, date.Format("2006-01-02"), now.Unix(), true, true) // Default billable = true
 	if err != nil {
 		return TimeEntry{}, err
 	}
@@ -135,13 +136,14 @@ func (a *App) createEntry(userID int, description string, date time.Time) (TimeE
 		StartTime:   now,
 		EndTime:     time.Time{},
 		IsRunning:   true,
+		Billable:    true,
 	}, nil
 }
 
 func (a *App) updateEntry(entry TimeEntry) error {
 	query := `
 		UPDATE time_entries 
-		SET description = ?, start_time = ?, end_time = ?, is_running = ?
+		SET description = ?, start_time = ?, end_time = ?, is_running = ?, billable = ?
 		WHERE id = ?
 	`
 	
@@ -153,13 +155,13 @@ func (a *App) updateEntry(entry TimeEntry) error {
 		endTime = entry.EndTime.Unix()
 	}
 	
-	_, err := a.db.Exec(query, entry.Description, startTime, endTime, entry.IsRunning, entry.ID)
+	_, err := a.db.Exec(query, entry.Description, startTime, endTime, entry.IsRunning, entry.Billable, entry.ID)
 	return err
 }
 
 func (a *App) getEntryById(userID, id int) (TimeEntry, error) {
 	query := `
-		SELECT id, description, date, start_time, end_time, is_running 
+		SELECT id, description, date, start_time, end_time, is_running, billable 
 		FROM time_entries 
 		WHERE id = ? AND user_id = ?
 	`
@@ -168,7 +170,7 @@ func (a *App) getEntryById(userID, id int) (TimeEntry, error) {
 	var dateStr string
 	var startTimeUnix, endTimeUnix sql.NullInt64
 	
-	err := a.db.QueryRow(query, id, userID).Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning)
+	err := a.db.QueryRow(query, id, userID).Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning, &entry.Billable)
 	if err != nil {
 		return TimeEntry{}, err
 	}
@@ -214,7 +216,7 @@ func (a *App) stopRunningEntries(userID int, date time.Time) ([]TimeEntry, error
 	
 	// Get running entries for this date and user
 	query := `
-		SELECT id, description, date, start_time, end_time, is_running 
+		SELECT id, description, date, start_time, end_time, is_running, billable 
 		FROM time_entries 
 		WHERE user_id = ? AND date >= ? AND date < ? AND is_running = true
 	`
@@ -231,7 +233,7 @@ func (a *App) stopRunningEntries(userID int, date time.Time) ([]TimeEntry, error
 		var dateStr string
 		var startTimeUnix, endTimeUnix sql.NullInt64
 		
-		err := rows.Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning)
+		err := rows.Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning, &entry.Billable)
 		if err != nil {
 			log.Printf("Error scanning entry: %v", err)
 			continue
@@ -336,10 +338,12 @@ func (a *App) getWeekStats(userID int, viewDate time.Time) []DayStats {
 		day := monday.AddDate(0, 0, i)
 		dayEntries := a.getEntriesForDate(userID, day)
 		
-		// Calculate total duration for this day
+		// Calculate total duration for this day (only billable)
 		var totalDuration time.Duration
 		for _, entry := range dayEntries {
-			totalDuration += entry.Duration()
+			if entry.Billable {
+				totalDuration += entry.Duration()
+			}
 		}
 		
 		totalHours := totalDuration.Hours()
@@ -452,10 +456,12 @@ func (a *App) getMonthStats(userID int, year int, month time.Month) MonthStats {
 	for current.Before(endDate.AddDate(0, 0, 1)) {
 		dayEntries := a.getEntriesForDate(userID, current)
 		
-		// Calculate total duration for this day
+		// Calculate total duration for this day (only billable)
 		var dayDuration time.Duration
 		for _, entry := range dayEntries {
-			dayDuration += entry.Duration()
+			if entry.Billable {
+				dayDuration += entry.Duration()
+			}
 		}
 		
 		dayHours := dayDuration.Hours()
@@ -655,6 +661,7 @@ func createTables(db *sql.DB) error {
 		start_time INTEGER,
 		end_time INTEGER,
 		is_running BOOLEAN DEFAULT FALSE,
+		billable BOOLEAN DEFAULT TRUE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);
@@ -849,7 +856,7 @@ func (a *App) handleMonthExport(w http.ResponseWriter, r *http.Request) {
 			Activity:    1, // Default activity ID - users should modify this
 			Begin:       entry.StartTime.Format("2006-01-02T15:04:05"),
 			Description: entry.Description,
-			Billable:    true,
+			Billable:    entry.Billable,
 			Exported:    false,
 		}
 		
@@ -880,7 +887,7 @@ func (a *App) getMonthEntries(userID int, year int, month time.Month) []TimeEntr
 	lastDay := firstDay.AddDate(0, 1, 0)
 	
 	query := `
-		SELECT id, description, date, start_time, end_time, is_running 
+		SELECT id, description, date, start_time, end_time, is_running, billable 
 		FROM time_entries 
 		WHERE user_id = ? AND date >= ? AND date < ?
 		ORDER BY start_time ASC
@@ -899,7 +906,7 @@ func (a *App) getMonthEntries(userID int, year int, month time.Month) []TimeEntr
 		var dateStr string
 		var startTimeUnix, endTimeUnix sql.NullInt64
 		
-		err := rows.Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning)
+		err := rows.Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning, &entry.Billable)
 		if err != nil {
 			log.Printf("Error scanning entry: %v", err)
 			continue
@@ -955,7 +962,7 @@ func (a *App) handleDateExport(w http.ResponseWriter, r *http.Request) {
 			Activity:    1, // Default activity ID - users should modify this
 			Begin:       entry.StartTime.Format("2006-01-02T15:04:05"),
 			Description: entry.Description,
-			Billable:    true,
+			Billable:    entry.Billable,
 			Exported:    false,
 		}
 		
@@ -1284,6 +1291,62 @@ func (a *App) handleEditDescription(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (a *App) handleToggleBillable(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	dateStr := vars["date"]
+	idStr := vars["id"]
+	
+	// Parse the date from URL
+	viewDate, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		http.Error(w, "Invalid date. Please use format YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
+	
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get user from context
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+	userID := user.ID
+
+	// Find and update the entry
+	entry, err := a.getEntryById(userID, id)
+	if err != nil {
+		http.Error(w, "Entry not found", http.StatusNotFound)
+		return
+	}
+
+	// Toggle billable status
+	entry.Billable = !entry.Billable
+
+	// Update in database
+	if err := a.updateEntry(entry); err != nil {
+		log.Printf("Error updating entry: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Return updated entry
+	w.Header().Set("Content-Type", "text/html")
+	if err := a.templates.ExecuteTemplate(w, "time_entry.html", entry); err != nil {
+		log.Printf("Error executing template: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "Internal server error")
+		return
+	}
+	
+	// Update the week chart with out-of-band swap
+	a.writeWeekChartUpdate(w, userID, viewDate)
+}
+
 func (a *App) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	dateStr := vars["date"]
@@ -1425,6 +1488,7 @@ func main() {
 	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/update-timer/{id}", app.handleUpdateTimer).Methods("GET")
 	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/edit-time/{id}", app.handleEditTime).Methods("POST")
 	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/edit-description/{id}", app.handleEditDescription).Methods("POST")
+	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/toggle-billable/{id}", app.handleToggleBillable).Methods("POST")
 	appRoutes.HandleFunc("/{date:[0-9]{4}-[0-9]{2}-[0-9]{2}}/delete/{id}", app.handleDeleteEntry).Methods("DELETE")
 
 	port := ":" + app.config.Port

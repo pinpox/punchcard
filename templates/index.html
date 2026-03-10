@@ -21,8 +21,8 @@
                        value="{{.ViewDate.Format "2006-01-02"}}"
                        onchange="goToSelectedDate(this.value)">
                 <div class="hours-summary">
-                    <a href="/" class="week-hours" title="Go to today">This week: {{fmtHours .WeekHours}}</a>
-                    <a href="{{.MonthURL}}" class="month-hours" title="Go to month view">This month: {{fmtHours .MonthHours}}</a>
+                    <a href="/" class="week-hours" id="week-hours" title="Go to today">This week: {{fmtHours .WeekHours}}</a>
+                    <a href="{{.MonthURL}}" class="month-hours" id="month-hours" title="Go to month view">This month: {{fmtHours .MonthHours}}</a>
                 </div>
             </div>
             <div class="header-right">

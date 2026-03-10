@@ -450,6 +450,18 @@ func (a *App) writeWeekChartUpdate(w http.ResponseWriter, userID int, viewDate t
 	fmt.Fprintf(w, `</div>`)
 }
 
+func (a *App) writeHeaderTotalsUpdate(w http.ResponseWriter, userID int, viewDate time.Time) {
+	weekStats := a.getWeekStats(userID, viewDate)
+	weekHours := 0.0
+	for _, day := range weekStats {
+		weekHours += day.TotalHours
+	}
+	monthStats := a.getMonthStats(userID, viewDate.Year(), viewDate.Month())
+
+	fmt.Fprintf(w, `<a href="/" class="week-hours" id="week-hours" title="Go to today" hx-swap-oob="outerHTML:#week-hours">This week: %s</a>`, formatHours(weekHours))
+	fmt.Fprintf(w, `<a href="/month/%s" class="month-hours" id="month-hours" title="Go to month view" hx-swap-oob="outerHTML:#month-hours">This month: %s</a>`, viewDate.Format("2006-01"), formatHours(monthStats.TotalHours))
+}
+
 func (a *App) getMonthStats(userID int, year int, month time.Month) MonthStats {
 	// First day of the month
 	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
@@ -1073,6 +1085,7 @@ func (a *App) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 	
 	// Update the week chart with out-of-band swap
 	a.writeWeekChartUpdate(w, userID, entryDate)
+	a.writeHeaderTotalsUpdate(w, userID, entryDate)
 }
 
 func (a *App) handleStartStop(w http.ResponseWriter, r *http.Request) {
@@ -1164,6 +1177,7 @@ func (a *App) handleStartStop(w http.ResponseWriter, r *http.Request) {
 	
 	// Update the week chart with out-of-band swap
 	a.writeWeekChartUpdate(w, userID, viewDate)
+	a.writeHeaderTotalsUpdate(w, userID, viewDate)
 }
 
 func (a *App) handleUpdateTimer(w http.ResponseWriter, r *http.Request) {
@@ -1262,6 +1276,7 @@ func (a *App) handleEditTime(w http.ResponseWriter, r *http.Request) {
 		
 		// Update the week chart with out-of-band swap
 		a.writeWeekChartUpdate(w, userID, viewDate)
+		a.writeHeaderTotalsUpdate(w, userID, viewDate)
 	}
 }
 
@@ -1368,6 +1383,7 @@ func (a *App) handleToggleBillable(w http.ResponseWriter, r *http.Request) {
 	
 	// Update the week chart with out-of-band swap
 	a.writeWeekChartUpdate(w, userID, viewDate)
+	a.writeHeaderTotalsUpdate(w, userID, viewDate)
 }
 
 func (a *App) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
@@ -1425,6 +1441,7 @@ func (a *App) handleDeleteEntry(w http.ResponseWriter, r *http.Request) {
 	
 	// Update the week chart with out-of-band swap
 	a.writeWeekChartUpdate(w, userID, viewDate)
+	a.writeHeaderTotalsUpdate(w, userID, viewDate)
 }
 
 // parseDuration parses simple time formats into time.Duration

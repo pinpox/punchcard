@@ -7,6 +7,26 @@
     <link rel="icon" type="image/svg+xml" id="favicon" href="/static/stopped.svg">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <link rel="stylesheet" href="/static/style.css">
+    {{if .Snowflakes}}
+    <style>
+        .snowflake {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            animation: snowfall linear forwards;
+        }
+        @keyframes snowfall {
+            0% {
+                opacity: 1;
+                transform: translateY(0) rotate(0deg);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(100vh) rotate(720deg);
+            }
+        }
+    </style>
+    {{end}}
 </head>
 <body>
     <div class="container">
@@ -437,6 +457,35 @@
             }
             originalElement.style.display = 'block';
         }
+
+        {{if .Snowflakes}}
+        // Snowflake effect on new timer creation
+        function spawnSnowflakes() {
+            const count = 15;
+            for (let i = 0; i < count; i++) {
+                const flake = document.createElement('img');
+                flake.src = '/static/nix-snowflake.svg';
+                flake.className = 'snowflake';
+                const size = 16 + Math.random() * 24;
+                flake.style.width = size + 'px';
+                flake.style.height = size + 'px';
+                flake.style.left = (Math.random() * 100) + 'vw';
+                flake.style.top = (-20 - Math.random() * 40) + 'px';
+                const duration = 2 + Math.random() * 3;
+                flake.style.animationDuration = duration + 's';
+                flake.style.animationDelay = (Math.random() * 0.8) + 's';
+                document.body.appendChild(flake);
+                setTimeout(() => flake.remove(), (duration + 1) * 1000);
+            }
+        }
+
+        // Hook into the add-entry form submission
+        document.querySelector('.add-entry-form form').addEventListener('htmx:afterRequest', function(e) {
+            if (e.detail.successful) {
+                spawnSnowflakes();
+            }
+        });
+        {{end}}
 
         // User menu toggle
         function toggleUserMenu() {

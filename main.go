@@ -230,9 +230,9 @@ func (a *App) stopRunningEntries(userID int) ([]TimeEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	
-	var stoppedEntries []TimeEntry
+	// Collect all running entries first, then close rows before writing
+	var runningEntries []TimeEntry
 	for rows.Next() {
 		var entry TimeEntry
 		var dateStr string
@@ -252,9 +252,16 @@ func (a *App) stopRunningEntries(userID int) ([]TimeEntry, error) {
 			entry.StartTime = time.Unix(startTimeUnix.Int64, 0)
 		}
 		
-		// Stop this entry
+		runningEntries = append(runningEntries, entry)
+	}
+	rows.Close()
+	
+	// Now update each entry with the rows cursor closed
+	var stoppedEntries []TimeEntry
+	now := time.Now()
+	for _, entry := range runningEntries {
 		entry.IsRunning = false
-		entry.EndTime = time.Now()
+		entry.EndTime = now
 		
 		if err := a.updateEntry(entry); err != nil {
 			log.Printf("Error stopping entry: %v", err)
@@ -785,6 +792,7 @@ func (a *App) handleDateView(w http.ResponseWriter, r *http.Request) {
 		WeekHours   float64
 		MonthHours  float64
 		User        *User
+		Snowflakes  bool
 	}{
 		Entries:     dateEntries,
 		ViewDate:    viewDate,
@@ -799,6 +807,7 @@ func (a *App) handleDateView(w http.ResponseWriter, r *http.Request) {
 		WeekHours:   weekHours,
 		MonthHours:  monthHours,
 		User:        GetUserFromContext(r),
+		Snowflakes:  a.config.Snowflakes,
 	}
 	
 	if err := a.templates.ExecuteTemplate(w, "index.html", data); err != nil {

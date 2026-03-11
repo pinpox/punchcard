@@ -10,6 +10,7 @@ type Config struct {
 	Port        string
 	DatabaseURL string
 	OIDC        OIDCConfig
+	Snowflakes  bool
 }
 
 // LoadConfig loads configuration from environment variables
@@ -17,6 +18,7 @@ func LoadConfig() Config {
 	config := Config{
 		Port:        getEnv("PORT", "8080"),
 		DatabaseURL: getEnv("DATABASE_URL", "punchcard.db"),
+		Snowflakes:  getEnv("SNOWFLAKES", "false") == "true",
 		OIDC: OIDCConfig{
 			IssuerURL:    getEnv("OIDC_ISSUER_URL", ""),
 			ClientID:     getEnv("OIDC_CLIENT_ID", ""),

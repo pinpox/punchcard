@@ -218,18 +218,15 @@ func (a *App) deleteEntry(userID, id int) error {
 	return nil
 }
 
-func (a *App) stopRunningEntries(userID int, date time.Time) ([]TimeEntry, error) {
-	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	dayEnd := dayStart.AddDate(0, 0, 1)
-	
-	// Get running entries for this date and user
+func (a *App) stopRunningEntries(userID int) ([]TimeEntry, error) {
+	// Get all running entries for this user across all dates
 	query := `
 		SELECT id, description, date, start_time, end_time, is_running, billable 
 		FROM time_entries 
-		WHERE user_id = ? AND date >= ? AND date < ? AND is_running = true
+		WHERE user_id = ? AND is_running = true
 	`
 	
-	rows, err := a.db.Query(query, userID, dayStart.Format("2006-01-02"), dayEnd.Format("2006-01-02"))
+	rows, err := a.db.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1067,7 +1064,7 @@ func (a *App) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 
 	// Stop any currently running timers for this date
 	dayStart := time.Date(entryDate.Year(), entryDate.Month(), entryDate.Day(), 0, 0, 0, 0, entryDate.Location())
-	stoppedEntries, err := a.stopRunningEntries(userID, entryDate)
+	stoppedEntries, err := a.stopRunningEntries(userID)
 	if err != nil {
 		log.Printf("Error stopping running entries: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -1149,7 +1146,7 @@ func (a *App) handleStartStop(w http.ResponseWriter, r *http.Request) {
 		targetEntry.EndTime = time.Now()
 	} else {
 		// Stop any other running timers from this date before starting this one
-		stoppedEntries, err = a.stopRunningEntries(userID, viewDate)
+		stoppedEntries, err = a.stopRunningEntries(userID)
 		if err != nil {
 			log.Printf("Error stopping running entries: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -1198,6 +1195,60 @@ func (a *App) handleStartStop(w http.ResponseWriter, r *http.Request) {
 	// Update the week chart with out-of-band swap
 	a.writeWeekChartUpdate(w, userID, viewDate)
 	a.writeHeaderTotalsUpdate(w, userID, viewDate)
+}
+
+func (a *App) getRunningEntry(userID int) (*TimeEntry, error) {
+	query := `
+		SELECT id, description, date, start_time, end_time, is_running, billable
+		FROM time_entries
+		WHERE user_id = ? AND is_running = true
+		LIMIT 1
+	`
+	var entry TimeEntry
+	var dateStr string
+	var startTimeUnix, endTimeUnix sql.NullInt64
+
+	err := a.db.QueryRow(query, userID).Scan(&entry.ID, &entry.Description, &dateStr, &startTimeUnix, &endTimeUnix, &entry.IsRunning, &entry.Billable)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if entry.Date, err = parseDate(dateStr); err != nil {
+		return nil, err
+	}
+	if startTimeUnix.Valid {
+		entry.StartTime = time.Unix(startTimeUnix.Int64, 0)
+	}
+	if endTimeUnix.Valid {
+		entry.EndTime = time.Unix(endTimeUnix.Int64, 0)
+	}
+
+	return &entry, nil
+}
+
+func (a *App) handleRunningStatus(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromContext(r)
+	if user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+
+	entry, err := a.getRunningEntry(user.ID)
+	if err != nil {
+		log.Printf("Error checking running status: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if entry == nil {
+		fmt.Fprint(w, `{"running":false}`)
+	} else {
+		fmt.Fprint(w, `{"running":true}`)
+	}
 }
 
 func (a *App) handleUpdateTimer(w http.ResponseWriter, r *http.Request) {
@@ -1543,6 +1594,7 @@ func main() {
 	
 	// Protected routes
 	appRoutes.HandleFunc("/profile", app.handleUserProfile).Methods("GET")
+	appRoutes.HandleFunc("/running-status", app.handleRunningStatus).Methods("GET")
 	
 	// Routes
 	appRoutes.HandleFunc("/", app.handleIndex).Methods("GET")

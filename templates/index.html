@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Punchcard - Time Tracker</title>
-    <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
-    <link rel="alternate icon" href="/static/logo.svg">
+    <link rel="icon" type="image/svg+xml" id="favicon" href="/static/stopped.svg">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -120,6 +119,20 @@
             });
         }
 
+        // Update favicon based on global running status
+        function updateFavicon() {
+            fetch('/running-status')
+                .then(response => response.json())
+                .then(data => {
+                    const favicon = document.getElementById('favicon');
+                    const newHref = data.running ? '/static/running.svg' : '/static/stopped.svg';
+                    if (favicon.getAttribute('href') !== newHref) {
+                        favicon.setAttribute('href', newHref);
+                    }
+                })
+                .catch(err => console.error('Error checking running status:', err));
+        }
+
         // Auto-update running timers every second
         setInterval(() => {
             const runningTimers = document.querySelectorAll('.timer-display[data-running="true"]');
@@ -133,7 +146,14 @@
                     })
                     .catch(err => console.error('Error updating timer:', err));
             });
+            updateFavicon();
         }, 1000);
+
+        // Also update on HTMX swaps (start/stop/add/delete)
+        document.body.addEventListener('htmx:afterSwap', updateFavicon);
+
+        // Set initial state on page load
+        updateFavicon();
 
         // Keyboard navigation
         document.addEventListener('keydown', function(e) {
